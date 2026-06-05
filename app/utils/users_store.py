@@ -2,9 +2,8 @@ import sqlite3
 from os import path, makedirs
 from datetime import datetime
 import json
+from flask import current_app, has_app_context
 from werkzeug.security import generate_password_hash, check_password_hash
-
-from app import app
 
 DB_DIR = path.join(path.dirname(__file__), '..', 'data')
 DB_FILE = path.join(DB_DIR, 'users.db')
@@ -33,18 +32,27 @@ def init_db():
     conn.close()
 
 
-def migrate_from_config():
+def _get_app_config():
+    if has_app_context():
+        return current_app.config
+
+    from app import app
+    return app.config
+
+
+def migrate_from_config(config=None):
     """Migrate users from app.config['USERS'] into the DB if DB empty."""
     init_db()
+    config = config or _get_app_config()
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute('SELECT count(1) as c FROM users')
     if cur.fetchone()['c'] == 0:
         # app.config['USERS'] expected format: { 'user': ('password', ['TARGET1',...]) }
-        for uname, val in app.config.get('USERS', {}).items():
+        for uname, val in config.get('USERS', {}).items():
             pwd = val[0]
             targets = val[1] if len(val) > 1 else []
-            is_admin = 1 if uname in app.config.get('ADMIN_GROUP', []) else 0
+            is_admin = 1 if uname in config.get('ADMIN_GROUP', []) else 0
             pwd_hash = generate_password_hash(pwd)
             cur.execute('INSERT OR REPLACE INTO users (username, password_hash, targets_json, is_admin, created_at) VALUES (?,?,?,?,?)',
                         (uname, pwd_hash, json.dumps(targets), is_admin, datetime.utcnow().isoformat()))

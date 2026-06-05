@@ -6,7 +6,7 @@ from cryptography.fernet import Fernet
 import os
 from datetime import datetime
 
-from app import app
+from flask import current_app, has_app_context
 
 DB_DIR = path.join(path.dirname(__file__), '..', 'data')
 DB_FILE = path.join(DB_DIR, 'targets.db')
@@ -34,9 +34,18 @@ def _get_fernet():
     return Fernet(key)
 
 
-def _get_fernet_old():
+def _get_app_config():
+    if has_app_context():
+        return current_app.config
+
+    from app import app
+    return app.config
+
+
+def _get_fernet_old(secret_key=None):
     # Backwards-compatible: derive key from SECRET_KEY used by older versions
-    key_bytes = sha256(app.config['SECRET_KEY'].encode('utf-8')).digest()
+    secret_key = secret_key or _get_app_config()['SECRET_KEY']
+    key_bytes = sha256(secret_key.encode('utf-8')).digest()
     key = base64.urlsafe_b64encode(key_bytes)
     return Fernet(key)
 
@@ -61,15 +70,16 @@ def init_db():
     conn.close()
 
 
-def migrate_from_config():
+def migrate_from_config(config=None):
     init_db()
     # If DB empty, populate from app.config['TARGETS']
+    config = config or _get_app_config()
     conn = _get_conn()
     cur = conn.cursor()
     cur.execute('SELECT count(1) as c FROM targets')
     if cur.fetchone()['c'] == 0:
         f = _get_fernet()
-        for name, desc in app.config.get('TARGETS', {}).items():
+        for name, desc in config.get('TARGETS', {}).items():
             host = desc.get('host')
             port = desc.get('port')
             sid = desc.get('sid')
@@ -84,7 +94,7 @@ def migrate_from_config():
     conn.close()
 
 
-def list_targets():
+def list_targets(secret_key=None):
     init_db()
     conn = _get_conn()
     cur = conn.cursor()
@@ -92,7 +102,7 @@ def list_targets():
     rows = cur.fetchall()
     f = _get_fernet()
     result = []
-    old_f = _get_fernet_old()
+    old_f = _get_fernet_old(secret_key)
     for r in rows:
         pwd = None
         enc_blob = r['password_encrypted']
@@ -145,9 +155,9 @@ def delete_target(name):
     conn.close()
 
 
-def get_targets_dict():
+def get_targets_dict(secret_key=None):
     """Return a dict suitable for app.config['TARGETS'] with decrypted password."""
-    rows = list_targets()
+    rows = list_targets(secret_key)
     d = {}
     for r in rows:
         entry = {

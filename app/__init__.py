@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from importlib import import_module
 from logging.handlers import RotatingFileHandler
 from os import makedirs, path
 from threading import RLock
@@ -16,11 +17,11 @@ from app.utils.targets_store import migrate_from_config, get_targets_dict
 from app.utils.users_store import migrate_from_config as migrate_users_from_config, get_users_dict
 
 # Migrate targets from config if present and load persisted targets
-migrate_from_config()
-app.config['TARGETS'] = get_targets_dict()
+migrate_from_config(app.config)
+app.config['TARGETS'] = get_targets_dict(app.config['SECRET_KEY'])
 
 # Migrate users from config if present and load persisted users
-migrate_users_from_config()
+migrate_users_from_config(app.config)
 users_dict, admins = get_users_dict()
 app.config['USERS'] = users_dict
 app.config['ADMIN_GROUP'] = admins
@@ -32,15 +33,18 @@ target_pool = {}
 active_connections = {}
 
 # Import view modules
-import app.views.error
-import app.views.application
-import app.views.target
-import app.views.top
-import app.views.workload
-import app.views.query
-import app.views.session
-import app.views.table
-import app.views.view
+for view_module in (
+    'app.views.error',
+    'app.views.application',
+    'app.views.target',
+    'app.views.top',
+    'app.views.workload',
+    'app.views.query',
+    'app.views.session',
+    'app.views.table',
+    'app.views.view',
+):
+    import_module(view_module)
 from app.ext import *
 
 # Prepare views' metadata
