@@ -49,10 +49,19 @@ def migrate_from_config(config=None):
     cur.execute('SELECT count(1) as c FROM users')
     if cur.fetchone()['c'] == 0:
         # app.config['USERS'] expected format: { 'user': ('password', ['TARGET1',...]) }
-        for uname, val in config.get('USERS', {}).items():
+        configured_users = config.get('USERS', {})
+        if not configured_users:
+            configured_users = {
+                'admin': ('admin', list(config.get('TARGETS', {}).keys()))
+            }
+            admin_group = {'admin'}
+        else:
+            admin_group = set(config.get('ADMIN_GROUP', []))
+
+        for uname, val in configured_users.items():
             pwd = val[0]
             targets = val[1] if len(val) > 1 else []
-            is_admin = 1 if uname in config.get('ADMIN_GROUP', []) else 0
+            is_admin = 1 if uname in admin_group else 0
             pwd_hash = generate_password_hash(pwd)
             cur.execute('INSERT OR REPLACE INTO users (username, password_hash, targets_json, is_admin, created_at) VALUES (?,?,?,?,?)',
                         (uname, pwd_hash, json.dumps(targets), is_admin, datetime.utcnow().isoformat()))
