@@ -1,8 +1,13 @@
+from datetime import datetime, timedelta
+
 from flask import abort, flash, g, redirect, render_template, request, session, url_for
 
 from app import title, view_attr
 from app.utils.parse_args import *
 from app.utils.permissions import can_manage_database_actions
+
+
+ADVISOR_DATE_ENDPOINTS = ('get_advisor_tasks', 'get_advisor_findings')
 
 
 def validate_request():
@@ -55,7 +60,25 @@ def render_list():
         return redirect(url_for(request.endpoint, **p))
 
     if 'do' not in request.args:
+        if request.endpoint in ADVISOR_DATE_ENDPOINTS:
+            g.execution_start_date = datetime.now().date().isoformat()
         return render_template('list.html')
+
+    if request.endpoint in ADVISOR_DATE_ENDPOINTS:
+        date_text = request.args.get('execution_start_date', datetime.now().date().isoformat())
+        g.execution_start_date = date_text
+        try:
+            start_time = datetime.strptime(date_text, '%Y-%m-%d')
+        except ValueError:
+            flash('Incorrect execution start date')
+            return render_template('list.html')
+
+        end_time = start_time + timedelta(days=1)
+        g.filter_expr = 'execution_start >= :1 and execution_start < :2'
+        g.filter_values = [start_time, end_time]
+        g.sort_expr = 'execution_start desc'
+        return None
+
     rf = rs = 0
     rr = ''
     if request.args.get('filter'):

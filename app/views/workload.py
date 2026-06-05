@@ -107,14 +107,14 @@ def get_ash_report(target):
 @title('Advisor Tasks')
 @template('list')
 @columns({"task_id": 'int'
-          , "execution_end": 'datetime'
+          , "execution_start": 'datetime'
           , "owner": 'str'
           , "task_name": 'str'
           , "advisor_name": 'str'
           , "description": 'str'})
 @select("dba_advisor_tasks")
-@default_sort("execution_end desc")
-@default_filters("execution_end > -1d")
+@default_sort("execution_start desc")
+@default_filters("execution_start > -1d")
 def get_advisor_tasks(target):
     return render_page()
 
@@ -151,4 +151,3 @@ def get_advisor_task_report(target, owner, task):
 @default_filters("execution_start > -1d")
 def get_advisor_findings(target):
     return render_page()
-

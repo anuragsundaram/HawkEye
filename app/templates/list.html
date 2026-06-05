@@ -1,6 +1,15 @@
 {% extends "layout.html" %}
 {% block content %}
 {% block parameters %}
+{% if request.endpoint in ('get_advisor_tasks', 'get_advisor_findings') %}
+<form method="get" class="filter-form">
+    <label>Execution start
+        <input type="date" class="sql-text" name="execution_start_date" value="{{ g.execution_start_date }}" autofocus>
+    </label>
+    <input type="hidden" name="do">
+    <input type="submit" value="Run">
+</form>
+{% else %}
 <form method="get">
     {% for k, v in g.parameters.items() %}
     <label>{% if loop.index == 1 %}Required{% endif %}
@@ -33,6 +42,7 @@
     {% if item %}<a class="sql-hint" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', event.target.innerText)">{{ item }}</a>{% endif %}
 {% endfor %}
 </div>
+{% endif %}
 {% endblock %}
 {% include 'flashed.html' %}
 {% if data is defined %}
