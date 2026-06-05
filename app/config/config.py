@@ -20,7 +20,7 @@ SECRET_KEY = ''.join([choice(ascii_letters + digits + punctuation) for n in rang
 # On production set host to 0.0.0.0, choose port and proper server_name (must include port, mycompany.com:8181).
 # It is possible to use default local settings, but note that Chrome may not send a cookie to localhost.
 # See the official Flask docs to learn more about these params.
-HOST = '127.0.0.1'  # [REQUIRED]
+HOST = '0.0.0.0'  # [REQUIRED]
 PORT = 5000
 SERVER_NAME = None
 CUSTOM_SERVER_NAME = None
