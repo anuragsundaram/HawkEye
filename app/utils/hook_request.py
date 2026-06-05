@@ -27,9 +27,11 @@ def validate_request():
         abort(403)
     elif not request.view_args.get('target'):
         return None
-    elif request.view_args['target'] in app.config['USERS'][session['user_name']][1]:
-        return None
     else:
+        user_config = app.config['USERS'].get(session['user_name'], ('', []))
+        allowed_targets = user_config[1]
+        if not allowed_targets or request.view_args['target'] in allowed_targets:
+            return None
         abort(403)
 
 

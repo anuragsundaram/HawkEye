@@ -16,7 +16,7 @@
                     <select id="target-select" name="target" aria-label="Select database">
                         {% set all_targets = config['TARGETS'].keys()|list %}
                         {% set user_config = config['USERS'].get(session.get('user_name', ''), ['', all_targets]) %}
-                        {% set allowed_targets = user_config[1] %}
+                        {% set allowed_targets = user_config[1] if user_config[1] else all_targets %}
                         {% for item in allowed_targets if item in config['TARGETS'] %}
                         <option value="{{ item }}" {% if item == request.view_args.get('target') %}selected{% endif %}>{{ item }}</option>
                         {% endfor %}
