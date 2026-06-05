@@ -1,0 +1,7 @@
+oracledb>=1.0.0
+Flask>=2.0.0
+pygal>=2.4.0
+plotly>=5.0.0
+Werkzeug>=2.0.0
+Jinja2>=3.0.0
+cryptography>=40.0.0

@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block content %}
+<pre class="sql-text">
+    <b>Welcome to Hawkeye A Modern Monitoring Dashboard</b>
+    A modern, elegant web application for real-time Database monitoring and performance analysis.
+    
+    <b>Key Features:</b>
+    • Real-time performance monitoring and metrics
+    • SQL execution analysis and tuning recommendations
+    • Session and activity tracking
+    • Workload analysis and visualization
+    • Multi-target database support
+    
+    <b>Getting Started:</b>
+    Save any link to your browser favorites for quick access.
+    Share links with team members for collaborative monitoring.
+    Use Ctrl+Click to open links in new tabs.
+    Drag any text to filter fields or other tabs for quick navigation.
+    Click ☰ in result tables to view complete SQL text.
+
+    <b>How to use filters:</b>
+    Some views accept SQL-like filter expressions (not raw SQL).
+    The internal parser converts them to WHERE statements.
+    Supported syntax: [column] [operator] [value] [and | or] [column] ...
+    
+    Filter examples:
+    - sid = 100
+    - executions > 1000 and elapsed_time < 5
+    - status = 'ACTIVE' or pct_used > 80
+    
+    Supported operators: =, !=, <, >, <=, >=, LIKE, IS NULL, IS NOT NULL
+    Date format: {{ config['DATETIME_FORMAT']}}
+    Relative dates: -1d (1 day ago), -2h (2 hours ago), -30m (30 minutes ago)
+
+    <b>Support & Documentation:</b>
+    For queries, limits, and additional help, visit the Administration page.
+    Maximum concurrent queries per user: {{ config['MAX_DB_SESSIONS_PER_USER']}}
+    
+    Happy monitoring! 📊
+</pre>
+{% endblock %}

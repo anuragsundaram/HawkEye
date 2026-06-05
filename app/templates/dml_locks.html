@@ -1,0 +1,316 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 style="margin:0;">DML Locks</h2>
+
+    <div style="display:flex; gap:8px; align-items:center;">
+        <label style="margin:0; display:flex; gap:8px; align-items:center;">
+            <span style="font-weight:600;">Filter SQL id</span>
+            <input id="filter-sqlid" type="text" placeholder="enter sql id"
+                   style="padding:6px 8px; border-radius:4px; border:1px solid #ddd; width:220px;" />
+        </label>
+
+        {% if g.is_admin %}
+            <button id="kill-all-top" class="action-button danger">Kill All</button>
+        {% endif %}
+
+        <button id="refresh-locks" class="refresh-btn">
+            <span class="refresh-icon">↻</span> Refresh
+        </button>
+    </div>
+</div>
+
+{% include 'flashed.html' %}
+
+<table class="list-table">
+    <thead>
+        <tr>
+            <th>SQL id</th>
+            <th>SQL text</th>
+            <th>Operation</th>
+            <th>Running (min)</th>
+            <th>Blocked sessions</th>
+            <th>User</th>
+            <th>Machine</th>
+            {% if g.is_admin %}<th>Action</th>{% endif %}
+        </tr>
+    </thead>
+    <tbody id="locks-body"></tbody>
+</table>
+
+<style>
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal {
+    background: #fff;
+    padding: 18px;
+    border-radius: 6px;
+    width: 640px;
+    max-width: 95%;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+}
+
+.modal h3 { margin-top: 0; }
+
+.modal .meta {
+    font-size: 0.95em;
+    margin-bottom: 8px;
+}
+
+.modal .sql-preview {
+    max-height: 160px;
+    overflow: auto;
+    white-space: pre-wrap;
+    background: #f9f9f9;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.modal .actions {
+    margin-top: 12px;
+    text-align: right;
+}
+
+.action-button {
+    background: #2b6cb0;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.action-button.danger {
+    background: linear-gradient(90deg,#ff5f6d,#ffc371);
+    color: #222;
+}
+
+.secondary-action-button {
+    background: #f3f4f6;
+    color: #222;
+    border: 1px solid #e5e7eb;
+}
+
+.sql-preview {
+    white-space: pre-wrap;
+}
+
+/* Restore Refresh Button Design */
+.refresh-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.refresh-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6);
+}
+
+.refresh-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.refresh-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.refresh-icon {
+    display: inline-block;
+    transition: transform 0.6s linear;
+}
+
+.refresh-btn:disabled .refresh-icon {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+
+{% if g.is_admin %}
+	<!-- Kill Session Modal -->
+<div id="killModal" class="modal-overlay">
+  <div class="modal">
+    <h3>Confirm Kill Session</h3>
+
+    <div class="meta"><b>Session:</b> <span id="km-sid"></span>, <span id="km-serial"></span></div>
+    <div class="meta"><b>User:</b> <span id="km-user"></span></div>
+    <div class="meta"><b>SQL id:</b> <span id="km-sqlid"></span></div>
+
+    <div class="sql-preview" id="km-sqltext"></div>
+
+    <form method="post" action="{{ url_for('kill_session', target=target) }}">
+	      <input type="hidden" name="sid" id="form-sid">
+	      <input type="hidden" name="serial" id="form-serial">
+	      <input type="hidden" name="return_to" value="{{ request.full_path }}">
+
+      <div class="actions">
+        <button type="button" id="km-cancel" class="action-button secondary-action-button">Cancel</button>
+        <button type="submit" class="action-button danger">Kill</button>
+		</div>
+    </form>
+  </div>
+</div>
+
+<!-- Kill All Modal -->
+<div id="killAllModal" class="modal-overlay">
+  <div class="modal">
+    <h3>Confirm Kill All Sessions</h3>
+    <div class="meta"><b>SQL id:</b> <span id="ka-sqlid"></span></div>
+
+    <form method="post" action="{{ url_for('kill_sql', target=target) }}">
+	      <input type="hidden" name="sql_id" id="form-sqlid">
+	      <input type="hidden" name="return_to" value="{{ request.full_path }}">
+
+      <div class="actions">
+        <button type="button" id="ka-cancel" class="action-button secondary-action-button">Cancel</button>
+        <button type="submit" class="action-button danger">Kill All</button>
+      </div>
+    </form>
+  </div>
+	</div>
+{% endif %}
+
+	<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+	    const dataUrl = "{{ url_for('get_dml_locks_data', target=target) }}";
+	    const refreshBtn = document.getElementById('refresh-locks');
+	    const canManageDatabase = {{ g.is_admin|tojson }};
+	    let locksData = [];
+
+    function renderLocks(locks) {
+        const tbody = document.getElementById('locks-body');
+        tbody.innerHTML = '';
+
+        if (!locks || locks.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+	            td.colSpan = canManageDatabase ? 8 : 7;
+            td.textContent = 'No blocking DML locks found.';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+
+        locks.forEach(function(l) {
+            const tr = document.createElement('tr');
+
+            function td(text, cls) {
+                const el = document.createElement('td');
+                if (cls) el.className = cls;
+                el.textContent = text || '';
+                return el;
+            }
+
+            const tdSqlId = td(l.sql_id || '-');
+            const tdSqlText = td(l.sql_text || '', 'sql-preview');
+            const tdOp = td(l.operation);
+            const tdRun = td(l.running_minutes, 'number-cell');
+            const tdBlocked = td(l.blocked_count, 'number-cell');
+            const tdUser = td(l.username);
+            const tdMachine = td(l.machine);
+
+	            const rowCells = [tdSqlId, tdSqlText, tdOp, tdRun, tdBlocked, tdUser, tdMachine];
+
+	            if (canManageDatabase) {
+	                const tdAction = document.createElement('td');
+	                const btn = document.createElement('button');
+	                btn.className = 'action-button';
+	                btn.textContent = 'Kill';
+
+	                btn.onclick = function() {
+	                    openKillModal(l);
+	                };
+
+	                tdAction.appendChild(btn);
+	                rowCells.push(tdAction);
+	            }
+
+	            tr.append(...rowCells);
+            tbody.appendChild(tr);
+        });
+    }
+
+	    function openKillModal(l) {
+	        if (!canManageDatabase) return;
+	        document.getElementById('km-sid').textContent = l.sid;
+        document.getElementById('km-serial').textContent = l.serial;
+        document.getElementById('km-user').textContent = l.username;
+        document.getElementById('km-sqlid').textContent = l.sql_id;
+        document.getElementById('km-sqltext').textContent = l.sql_text;
+
+        document.getElementById('form-sid').value = l.sid;
+        document.getElementById('form-serial').value = l.serial;
+
+        document.getElementById('killModal').style.display = 'flex';
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    async function load() {
+        refreshBtn.disabled = true;
+        try {
+            const res = await fetch(dataUrl, { credentials: 'same-origin' });
+            locksData = await res.json();
+            renderLocks(locksData);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            refreshBtn.disabled = false;
+        }
+    }
+
+    refreshBtn.addEventListener('click', load);
+
+	    if (canManageDatabase) {
+	        document.getElementById('km-cancel').onclick = () => closeModal('killModal');
+	        document.getElementById('ka-cancel').onclick = () => closeModal('killAllModal');
+
+	        document.getElementById('kill-all-top').onclick = function() {
+	            const val = document.getElementById('filter-sqlid').value.trim();
+	            if (!val) return alert('Enter SQL id');
+
+	            document.getElementById('ka-sqlid').textContent = val;
+	            document.getElementById('form-sqlid').value = val;
+	            document.getElementById('killAllModal').style.display = 'flex';
+	        };
+
+	        document.getElementById('killModal').onclick = e => { if (e.target.id === 'killModal') closeModal('killModal'); };
+	        document.getElementById('killAllModal').onclick = e => { if (e.target.id === 'killAllModal') closeModal('killAllModal'); };
+	    }
+
+    load();
+});
+</script>
+
+{% endblock %}

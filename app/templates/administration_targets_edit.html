@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Edit Target {{ target.name }}</h2>
+{% include 'flashed.html' %}
+<form class="target-admin-form" method="post" action="{{ url_for('post_targets_update') }}">
+    <input type="hidden" name="orig_name" value="{{ target.name }}" />
+    <label>Name <input name="name" value="{{ target.name }}" required /></label>
+    <label>Host <input name="host" value="{{ target.host }}" required /></label>
+    <label>Port <input name="port" value="{{ target.port }}" /></label>
+    <label>SID <input name="sid" value="{{ target.sid }}" /></label>
+    <label>Service <input name="service" value="{{ target.service }}" /></label>
+    <label>User <input name="user" value="{{ target.user }}" required /></label>
+    <label>Password <input type="password" name="password" placeholder="leave blank to keep existing" /></label>
+    <label>Encoding <input name="encoding" value="{{ target.encoding or 'UTF-8' }}" /></label>
+    <div class="target-form-actions">
+        <button class="action-button" type="submit">Save</button>
+        <a class="secondary-action-button" href="{{ url_for('get_targets_admin') }}">Cancel</a>
+    </div>
+</form>
+
+{% endblock %}

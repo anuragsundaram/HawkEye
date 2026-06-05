@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Database Targets</h2>
+{% include 'flashed.html' %}
+<table class="list-table">
+    <thead>
+        <tr><th>Name</th><th>Host</th><th>Port</th><th>SID</th><th>Service</th><th>User</th><th>Status</th><th>Created</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+    {% for t in targets %}
+        <tr>
+            <td>{{ t.name }}</td>
+            <td>{{ t.host }}</td>
+            <td>{{ t.port }}</td>
+            <td>{{ t.sid or '' }}</td>
+            <td>{{ t.service or '' }}</td>
+            <td>{{ t.user }}</td>
+            <td>
+                {% set s = statuses.get(t.name, 'disconnected') %}
+                {% if s == 'connected' %}
+                    <span style="color:var(--success-color); font-weight:700;">Connected</span>
+                {% else %}
+                    <span style="color:var(--danger-color); font-weight:700;">Disconnected</span>
+                {% endif %}
+            </td>
+            <td>{{ t.created_at }}</td>
+            <td>
+                <a class="action-button" href="{{ url_for('get_targets_edit', name=t.name) }}" style="padding: 6px 12px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Edit</a>
+                &nbsp;
+                <form method="post" action="{{ url_for('post_targets_delete', name=t.name) }}" style="display:inline" onsubmit="return confirm('Delete target {{ t.name }}?')">
+                    <button class="action-button danger" type="submit" style="padding: 6px 12px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Delete</button>
+                </form>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h3>Add Target</h3>
+<form class="target-admin-form" method="post" action="{{ url_for('post_targets_add') }}">
+    <label>Name <input name="name" required /></label>
+    <label>Host <input name="host" required /></label>
+    <label>Port <input name="port" value="1521" /></label>
+    <label>SID <input name="sid" /></label>
+    <label>Service <input name="service" /></label>
+    <label>User <input name="user" required /></label>
+    <label>Password <input type="password" name="password" /></label>
+    <label>Encoding <input name="encoding" value="UTF-8" /></label>
+    <div class="target-form-actions">
+        <button class="action-button" type="submit">Add Target</button>
+    </div>
+</form>
+
+{% endblock %}

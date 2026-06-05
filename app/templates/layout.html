@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
+    <title>{{ g.title.get(request.endpoint, 'Hwakeye - Database Monitoring') }} {{ request.view_args.values()|list|last }}</title>
+</head>
+<body>
+    <div class="flex-container">
+        <div class="flex-header">
+            <div class="brand"><a href="{{ url_for('get_welcome_page') }}"><div class="logo-container"><div class="logo-text">⚙️ Hwakeye - Database Monitoring</div><div class="logo-subtitle">Real-time Database Insights</div></div></a></div>
+            <div class="targets">
+                <form id="target-select-form" method="get">
+                    <label class="target-select-label" for="target-select">Database</label>
+                    <select id="target-select" name="target" aria-label="Select database">
+                        {% set all_targets = config['TARGETS'].keys()|list %}
+                        {% set user_config = config['USERS'].get(session.get('user_name', ''), ['', all_targets]) %}
+                        {% set allowed_targets = user_config[1] %}
+                        {% for item in allowed_targets if item in config['TARGETS'] %}
+                        <option value="{{ item }}" {% if item == request.view_args.get('target') %}selected{% endif %}>{{ item }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+            <div class="top-status">
+                <time id="live-clock" class="live-clock" datetime=""></time>
+                <div class="user-chip" title="Signed in user">{{ session.get('user_name', 'User') }}</div>
+            </div>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var sel = document.getElementById('target-select');
+                    var clock = document.getElementById('live-clock');
+
+                    if (sel) {
+                        sel.addEventListener('change', function() {
+                            var target = this.value;
+                            window.location = '{{ url_for("get_target", target="__TEMPLATE__") }}'.replace('__TEMPLATE__', encodeURIComponent(target));
+                        });
+                    }
+
+                    function updateClock() {
+                        if (!clock) return;
+                        var now = new Date();
+                        clock.dateTime = now.toISOString();
+                        clock.textContent = now.toLocaleString(undefined, {
+                            weekday: 'short',
+                            hour12: true,
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+                    }
+
+                    updateClock();
+                    if (clock) {
+                        setInterval(updateClock, 1000);
+                    }
+                });
+            </script>
+        </div>
+        <div class="flex-body">
+            <div class="flex-menu">
+                {% set menu_tree = config['MENU_TREE'] %}
+                {% for top_item in menu_tree.keys() if top_item not in ('get_app', 'logout') %}
+                    {% set param = menu_tree[top_item][0] %}
+                    {% set has_targets = (config['TARGETS']|length) > 0 %}
+                    {% if top_item == request.endpoint or request.view_args.get(param) or (param == 'target' and has_targets) %}
+                        {% if param == 'target' and not request.view_args.get('target') and has_targets %}
+                            {% set first_target = (config['TARGETS'].keys()|list)[0] %}
+                            <a href="{{ url_for(top_item, target=first_target) }}" class="top-menu-item{% if top_item == request.endpoint %} selected{% endif %}">{{ g.title[top_item] }}</a>
+                        {% elif request.view_args.get(param) %}
+                            <a href="{{ url_for(top_item, **request.view_args) }}" class="top-menu-item{% if top_item == request.endpoint %} selected{% endif %}">{{ g.title[top_item] }}</a>
+                        {% else %}
+                            <a href="{{ url_for(top_item) }}" class="top-menu-item{% if top_item == request.endpoint %} selected{% endif %}">{{ g.title[top_item] }}</a>
+                        {% endif %}
+                    {% endif %}
+                    {% if request.endpoint in menu_tree[top_item][1] or request.endpoint == top_item %}
+                        {% for sub_item in menu_tree[top_item][1] %}
+                            {% if sub_item not in config['TARGET_SPECIFIC_VIEWS'].keys() or request.view_args.get('target', '') in config['TARGET_SPECIFIC_VIEWS'][sub_item] %}
+                                <a href="{{ url_for(sub_item, **request.view_args) }}" class="sub-menu-item{% if request.endpoint == sub_item %} selected{% endif %}">{{ g.title[sub_item] }}</a>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+                {# Administrator tab for admin users - above logout #}
+                {% if session.get('user_name') and session.get('user_name') in config.get('ADMIN_GROUP', []) %}
+                    <a href="{{ url_for('get_app') }}" class="top-menu-item{% if request.endpoint == 'get_app' or request.endpoint in ['get_targets_admin', 'get_users_admin'] %} selected{% endif %}">⚙️ Administrator</a>
+                    {% if request.endpoint == 'get_app' or request.endpoint in ['get_targets_admin', 'get_users_admin'] %}
+                        <a href="{{ url_for('get_targets_admin') }}" class="sub-menu-item{% if request.endpoint == 'get_targets_admin' %} selected{% endif %}">{{ g.title['get_targets_admin'] }}</a>
+                        <a href="{{ url_for('get_users_admin') }}" class="sub-menu-item{% if request.endpoint == 'get_users_admin' %} selected{% endif %}">{{ g.title['get_users_admin'] }}</a>
+                    {% endif %}
+                {% endif %}
+                {# Logout link at bottom #}
+                <a href="{{ url_for('logout') }}" class="top-menu-item">🔓 Logout</a>
+            </div>
+            <div class="flex-content">
+                <div class="form-caption">{{ g.title[request.endpoint] }}
+                    {%- for item in request.view_args.values() -%}
+                        <span class="caption-sep"> / </span>{{ item }}
+                    {%- endfor -%}
+                </div>
+                {% if g.view_doc %}<div style="width: 70%">{{ g.view_doc }}</div><br>{% endif %}
+{% block content %}
+{% if text is defined %}
+                <div>{{ text }}</div>
+{% endif %}
+{% if formatted_text is defined %}
+                <pre>{{ formatted_text }}</pre>
+{% endif %}
+{% endblock %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

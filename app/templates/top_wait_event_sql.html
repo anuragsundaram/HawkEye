@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block content %}
+{% include 'flashed.html' %}
+{% if rows is defined and rows %}
+<section class="data-section">
+    <div class="section-title">SQL causing {{ event }}</div>
+    <table class="slow-sql-table">
+        <tr>
+            <th>SQL id</th>
+            <th>Samples</th>
+            <th>SQL text</th>
+        </tr>
+        {% for sql_id, sql_text, samples in rows %}
+        <tr>
+            <td><a href="{{ url_for('get_query', target=request.view_args['target'], query=sql_id) }}">{{ sql_id }}</a></td>
+            <td class="number-cell">{{ samples }}</td>
+            <td class="sql-preview"><a href="{{ url_for('get_query', target=request.view_args['target'], query=sql_id) }}">{{ sql_text }}</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+</section>
+{% elif rows is defined and rows is not none %}
+<section class="data-section">
+    <div class="section-title">SQL causing {{ event }}</div>
+    <div class="form-caption">No SQL found for this event in the selected interval.</div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,178 @@
+{% extends "layout.html" %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 style="margin:0;">SQL Monitor</h2>
+    <button id="refresh-sql" class="refresh-btn"><span class="refresh-icon">↻</span> Refresh</button>
+</div>
+
+{% include 'flashed.html' %}
+
+<table class="list-table">
+    <thead>
+        <tr>
+            <th>SID</th>
+            <th>SQL id</th>
+            <th>SQL text</th>
+            <th>User</th>
+            <th>Module</th>
+            <th>Elapsed (s)</th>
+            <th>Buffer gets</th>
+            <th>Disk reads</th>
+            {% if g.is_admin %}<th>Action</th>{% endif %}
+        </tr>
+    </thead>
+    <tbody id="sql-body">
+    </tbody>
+</table>
+
+	<!-- Kill confirmation modal (reuse pattern) -->
+<style>
+/* Refresh button styles */
+.refresh-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+.refresh-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6); }
+.refresh-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+.refresh-icon { display: inline-block; transition: transform 0.6s linear; }
+.refresh-btn:disabled .refresh-icon { animation: spin 0.8s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 2000; }
+.modal { background: #fff; padding: 18px; border-radius: 6px; width: 640px; max-width: 95%; box-shadow: 0 6px 24px rgba(0,0,0,0.2); }
+.modal h3 { margin-top: 0; }
+.modal .meta { font-size: 0.95em; color: #333; margin-bottom: 8px; }
+.modal .sql-preview { max-height: 160px; overflow: auto; white-space: pre-wrap; background: #f9f9f9; padding: 8px; border-radius: 4px; border: 1px solid #eee; }
+    .modal .actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+    .modal button { margin-left: 8px; }
+    .modal .actions button { margin-left: 0; }
+</style>
+
+{% if g.is_admin %}
+		<div id="killModal" class="modal-overlay" role="dialog" aria-hidden="true">
+  <div class="modal" role="document">
+    <h3>Confirm Kill Session</h3>
+    <div class="meta"><strong>Session:</strong> <span id="km-sid"></span> , <span id="km-serial"></span></div>
+    <div class="meta"><strong>User:</strong> <span id="km-user"></span> &nbsp; <strong>Module:</strong> <span id="km-module"></span></div>
+    <div class="meta"><strong>Elapsed (s):</strong> <span id="km-elapsed"></span></div>
+    <div class="meta"><strong>SQL id:</strong> <span id="km-sqlid"></span></div>
+    <div class="sql-preview" id="km-sqltext"></div>
+    <form id="killForm" method="post" action="{{ url_for('kill_session', target=target) }}">
+	      <input type="hidden" name="sid" id="form-sid" value="">
+	      <input type="hidden" name="serial" id="form-serial" value="">
+	      <input type="hidden" name="action" value="kill">
+	      <input type="hidden" name="return_to" value="{{ request.full_path }}">
+      <div class="actions">
+        <button type="button" id="km-cancel" class="action-button secondary-action-button">Cancel</button>
+        <button type="submit" id="km-kill" class="action-button">Kill session</button>
+		</div>
+	    </form>
+	  </div>
+	</div>
+{% endif %}
+
+	<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		    const dataUrl = "{{ url_for('get_sql_monitor_data', target=target) }}";
+		    const refreshBtn = document.getElementById('refresh-sql');
+		    const canManageDatabase = {{ g.is_admin|tojson }};
+		    const rowData = new Map();
+
+	    const modal = canManageDatabase ? document.getElementById('killModal') : null;
+	    const sidEl = canManageDatabase ? document.getElementById('km-sid') : null;
+	    const serialEl = canManageDatabase ? document.getElementById('km-serial') : null;
+	    const userEl = canManageDatabase ? document.getElementById('km-user') : null;
+	    const moduleEl = canManageDatabase ? document.getElementById('km-module') : null;
+	    const elapsedEl = canManageDatabase ? document.getElementById('km-elapsed') : null;
+	    const sqlidEl = canManageDatabase ? document.getElementById('km-sqlid') : null;
+	    const sqltextEl = canManageDatabase ? document.getElementById('km-sqltext') : null;
+	    const formSid = canManageDatabase ? document.getElementById('form-sid') : null;
+	    const formSerial = canManageDatabase ? document.getElementById('form-serial') : null;
+
+	    function openModal(data) {
+	        if (!canManageDatabase) return;
+	        sidEl.textContent = data.sid || '';
+        serialEl.textContent = data.serial || '';
+        userEl.textContent = data.username || '';
+        moduleEl.textContent = data.module || '';
+        elapsedEl.textContent = data.elapsed_secs || '';
+        sqlidEl.textContent = data.sql_id || '';
+        sqltextEl.textContent = data.sql_text || '';
+        formSid.value = data.sid || '';
+        formSerial.value = data.serial || '';
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+    }
+
+	    function closeModal() { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
+	    if (canManageDatabase) {
+	        document.getElementById('km-cancel').addEventListener('click', closeModal);
+	        modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+	    }
+
+	    function renderRows(rows) {
+	        const tbody = document.getElementById('sql-body');
+	        tbody.innerHTML = '';
+	        rowData.clear();
+        if (!rows || rows.length === 0) {
+            const tr = document.createElement('tr');
+	            const td = document.createElement('td'); td.colSpan = canManageDatabase ? 9 : 8; td.textContent = 'No executing SQL found.'; tr.appendChild(td); tbody.appendChild(tr); return;
+        }
+	        rows.forEach(function(r, index) {
+	            const rowKey = String(index);
+	            rowData.set(rowKey, r);
+	            const tr = document.createElement('tr');
+            const tdSid = document.createElement('td'); tdSid.textContent = r.sid; tr.appendChild(tdSid);
+            const tdSqlId = document.createElement('td'); if (r.sql_id) { const a = document.createElement('a'); a.href = "{{ url_for('get_query', target=target, query='') }}" + r.sql_id; a.textContent = r.sql_id; tdSqlId.appendChild(a);} else tdSqlId.textContent = '-'; tr.appendChild(tdSqlId);
+            const tdSqlText = document.createElement('td'); tdSqlText.className='sql-preview'; tdSqlText.textContent = r.sql_text || ''; tdSqlText.title = r.sql_text || ''; tr.appendChild(tdSqlText);
+            const tdUser = document.createElement('td'); tdUser.textContent = r.username || ''; tr.appendChild(tdUser);
+            const tdModule = document.createElement('td'); tdModule.textContent = r.module || ''; tr.appendChild(tdModule);
+            const tdElapsed = document.createElement('td'); tdElapsed.textContent = r.elapsed_secs != null ? r.elapsed_secs : ''; tr.appendChild(tdElapsed);
+            const tdBuf = document.createElement('td'); tdBuf.textContent = r.buffer_gets != null ? r.buffer_gets : ''; tr.appendChild(tdBuf);
+            const tdDisk = document.createElement('td'); tdDisk.textContent = r.disk_reads != null ? r.disk_reads : ''; tr.appendChild(tdDisk);
+	            if (canManageDatabase) {
+		            const tdAction = document.createElement('td'); const btn = document.createElement('button'); btn.type='button'; btn.className='open-kill-modal action-button'; btn.textContent='Kill'; btn.dataset.rowKey=rowKey; tdAction.appendChild(btn); tr.appendChild(tdAction);
+	            }
+            tbody.appendChild(tr);
+        });
+        attachHandlers();
+    }
+
+	    function attachHandlers() {
+	        document.querySelectorAll('.open-kill-modal').forEach(function(btn) {
+	            btn.addEventListener('click', function() {
+	                const data = rowData.get(this.dataset.rowKey) || {};
+	                openModal(data);
+	            });
+	        });
+    }
+
+    async function load() {
+        refreshBtn.disabled = true;
+        try {
+            const resp = await fetch(dataUrl, { credentials: 'same-origin' });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Failed to load');
+            renderRows(data);
+        } catch (err) {
+	            const tbody = document.getElementById('sql-body'); tbody.innerHTML=''; const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=canManageDatabase ? 9 : 8; td.textContent='Error loading: '+err.message; tr.appendChild(td); tbody.appendChild(tr);
+        } finally { refreshBtn.disabled = false; }
+    }
+
+    document.getElementById('refresh-sql').addEventListener('click', load);
+    load();
+});
+</script>
+
+{% endblock %}

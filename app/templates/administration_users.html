@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div style="margin-top: 20px; width: 100%; max-width: 1200px;">
+    <h2>Manage Users</h2>
+    
+    <!-- Add User Form -->
+    <div style="margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+        <h3>Add New User</h3>
+        <form method="POST" action="{{ url_for('post_users_add') }}" style="display: grid; gap: 10px; max-width: 500px;">
+            <div>
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required placeholder="Enter username" style="width: 100%; padding: 8px;">
+            </div>
+            <div>
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required placeholder="Enter password" style="width: 100%; padding: 8px;">
+            </div>
+            <div>
+                <label for="role">Role:</label>
+                <select id="role" name="role" required style="width: 100%; padding: 8px;">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <button type="submit" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Add User</button>
+        </form>
+    </div>
+
+    <!-- Users List -->
+    <div style="margin-bottom: 30px;">
+        <h3>Active Users</h3>
+        {% if users %}
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                <thead>
+                    <tr style="background-color: #f9f9f9;">
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Username</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Role</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Targets</th>
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Created</th>
+                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                        <tr style="border-bottom: 1px solid #ddd;">
+                            <td style="padding: 12px;">{{ user.username }}</td>
+                            <td style="padding: 12px;">
+                                <span style="padding: 4px 8px; border-radius: 3px; {% if user.is_admin %}background-color: #ff9800; color: white;{% else %}background-color: #2196F3; color: white;{% endif %}">
+                                    {% if user.is_admin %}Admin{% else %}User{% endif %}
+                                </span>
+                            </td>
+                            <td style="padding: 12px;">
+                                {% if user.targets %}
+                                    <small>{{ user.targets|join(', ') }}</small>
+                                {% else %}
+                                    <small>-</small>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px;">
+                                <small>{{ user.created_at[:10] }}</small>
+                            </td>
+                            <td style="padding: 12px; text-align: center;">
+                                {% if user.username != session.get('user_name') %}
+                                    <form method="POST" action="{{ url_for('post_users_delete', username=user.username) }}" style="display: inline;" onsubmit="return confirm('Delete user {{ user.username }}?');">
+                                        <button type="submit" style="padding: 6px 12px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Delete</button>
+                                    </form>
+                                {% else %}
+                                    <small style="color: #999;">(Current user)</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No users found.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

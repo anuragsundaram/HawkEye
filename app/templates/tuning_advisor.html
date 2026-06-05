@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block content %}
+<form method="get">
+    <label>Task day
+        <input type="date" class="sql-text" name="task_day" value="{{ selected_day }}">
+    </label>
+    <input type="submit" value="Run">
+</form>
+{% include 'flashed.html' %}
+{% if tasks %}
+<table>
+    <tr>
+        <th>Owner</th>
+        <th>Task name</th>
+        <th>Created</th>
+        <th>Started</th>
+        <th>Ended</th>
+        <th>Status</th>
+        <th>Description</th>
+        <th>Message</th>
+        <th>Action</th>
+    </tr>
+    {% for owner, task_name, created, execution_start, execution_end, status, display_status, description, status_message in tasks %}
+    <tr>
+        <td>{{ owner }}</td>
+        <td>{{ task_name }}</td>
+        <td>{{ created.strftime(config['DATETIME_FORMAT']) if created else '' }}</td>
+        <td>{{ execution_start.strftime(config['DATETIME_FORMAT']) if execution_start else '' }}</td>
+        <td>{{ execution_end.strftime(config['DATETIME_FORMAT']) if execution_end else '' }}</td>
+        <td><span class="task-status task-status-{{ display_status|lower }}">{{ display_status }}</span></td>
+        <td>{{ description or '' }}</td>
+        <td>{{ status_message or '' }}</td>
+        <td>
+            {% if display_status == 'Successful' %}
+            <a class="action-button" href="{{ url_for('get_tuning_advisor_report', target=request.view_args['target'], owner=owner, task_name=task_name) }}">Reports</a>
+            {% else %}
+            <span class="action-button action-button-disabled" title="Report is available only after the task is successful">Reports</span>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<div class="form-caption">No SQL tuning advisor tasks found for this day.</div>
+{% endif %}
+{% endblock %}

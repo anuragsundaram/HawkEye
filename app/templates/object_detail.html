@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block content %}
+{% include 'flashed.html' %}
+{% if object_links %}
+<div class="sql-hint-container">
+    {% for label, link in object_links %}
+    <a class="sql-hint" href="{{ link }}">{{ label }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+{% if rows is defined and rows %}
+<table>
+    <tr>
+        <th>Owner</th>
+        <th>Object name</th>
+        <th>Subobject name</th>
+        <th>Object type</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Last DDL time</th>
+        <th>Temporary</th>
+        <th>Generated</th>
+    </tr>
+    {% for row in rows %}
+    <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+        <td>{{ row[2] or '' }}</td>
+        <td>{{ row[3] }}</td>
+        <td>{{ row[4] }}</td>
+        <td>{{ row[5].strftime(config['DATETIME_FORMAT']) if row[5] else '' }}</td>
+        <td>{{ row[6].strftime(config['DATETIME_FORMAT']) if row[6] else '' }}</td>
+        <td>{{ row[7] }}</td>
+        <td>{{ row[8] }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% elif rows is defined and rows is not none %}
+<div class="form-caption">No object found.</div>
+{% endif %}
+{% endblock %}

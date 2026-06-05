@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>Welcome to HawkEye - Database Monitoring</h2>
+<p style="margin-top:8px;">Quick links and status overview.</p>
+<div style="display:flex; gap:16px; margin-top:12px;">
+    <div style="background:white; padding:12px; border-radius:8px; width:320px;">
+        <h3>Targets</h3>
+        <ul>
+        {% for name in config['TARGETS'].keys() %}
+            <li><a href="{{ url_for('get_target', target=name) }}">{{ name }}</a></li>
+        {% else %}
+            <li>No targets configured. <a href="{{ url_for('get_targets_admin') }}">Add a target</a></li>
+        {% endfor %}
+        </ul>
+    </div>
+    <div style="background:white; padding:12px; border-radius:8px; width:480px;">
+        <h3>Administration</h3>
+        <ul>
+            <li><a href="{{ url_for('get_targets_admin') }}">Manage database targets</a></li>
+            <li><a href="{{ url_for('logout') }}">Logout</a></li>
+        </ul>
+    </div>
+</div>
+
+<div style="margin-top:18px; background:white; padding:12px; border-radius:8px;">
+    <h3>Getting started</h3>
+    <ol>
+        <li>Add one or more database targets via <a href="{{ url_for('get_targets_admin') }}">Manage database targets</a>.</li>
+        <li>Select a target from the dropdown in the header to view activity and workload.</li>
+        <li>Use the sidebar to navigate to SQL Monitor, Session Monitor, DML Locks, and other tools.</li>
+    </ol>
+</div>
+
+{% endblock %}

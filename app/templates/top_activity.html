@@ -1,0 +1,306 @@
+{% extends "layout.html" %}
+{% block content %}
+<script>
+function formatDatetime(isoString) {
+    if (!isoString) return '';
+    const dt = new Date(isoString);
+    const day = String(dt.getDate()).padStart(2, '0');
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const year = dt.getFullYear();
+    const hours = String(dt.getHours()).padStart(2, '0');
+    const minutes = String(dt.getMinutes()).padStart(2, '0');
+    const seconds = '00';
+    return day + '.' + month + '.' + year + ' ' + hours + ':' + minutes + ':' + seconds;
+}
+
+function toISOFormat(dateString) {
+    if (!dateString) return '';
+    // Handle dd.mm.yyyy HH:MM:SS format
+    const match = dateString.match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
+    if (match) {
+        const [, day, month, year, hours, minutes] = match;
+        return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+    }
+    // Already ISO format or relative time format
+    return dateString;
+}
+
+function toLocalDatetimeValue(dt) {
+    const year = dt.getFullYear();
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    const hours = String(dt.getHours()).padStart(2, '0');
+    const minutes = String(dt.getMinutes()).padStart(2, '0');
+    return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const startInput = document.querySelector('input[name="start_date"]');
+    const endInput = document.querySelector('input[name="end_date"]');
+    const refreshButton = document.getElementById('top-activity-refresh');
+    const dateLabels = document.querySelectorAll('.datetime-label');
+
+    // Convert stored format to ISO format for display
+    if (startInput.value && startInput.value.includes('.')) {
+        startInput.value = toISOFormat(startInput.value);
+    }
+    if (endInput.value && endInput.value.includes('.')) {
+        endInput.value = toISOFormat(endInput.value);
+    }
+
+    refreshButton.addEventListener('click', function() {
+        const endDate = new Date();
+        endDate.setSeconds(0, 0);
+        const startDate = new Date(endDate.getTime() - 30 * 60 * 1000);
+        startInput.value = toLocalDatetimeValue(startDate);
+        endInput.value = toLocalDatetimeValue(endDate);
+    });
+
+    dateLabels.forEach(function(label) {
+        label.addEventListener('click', function(event) {
+            if (event.target.tagName !== 'INPUT') {
+                const input = this.querySelector('input[type="datetime-local"]');
+                if (input) {
+                    if (typeof input.showPicker === 'function') {
+                        input.showPicker();
+                    } else {
+                        input.focus();
+                    }
+                }
+            }
+        });
+    });
+    
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        if (startInput.value && !startInput.value.includes('.')) {
+            startInput.value = formatDatetime(startInput.value);
+        }
+        if (endInput.value && !endInput.value.includes('.')) {
+            endInput.value = formatDatetime(endInput.value);
+        }
+    });
+});
+</script>
+<form method="get" class="top-activity-form">
+    <label class="datetime-label">Start time
+        <input type="datetime-local" class="sql-text" name="start_date" value="{{ default_start_date_iso }}">
+    </label>
+    <label class="datetime-label">End time
+        <input type="datetime-local" class="sql-text" name="end_date" value="{{ default_end_date_iso }}">
+    </label>
+    <label>User name
+        <input type="text" class="sql-text" name="user_name" size="14" maxlength="512" placeholder='like str' value="{{ selected_user_name }}">
+    </label>
+    <label>SQL id
+        <input type="text" class="sql-text" name="sql_id" size="14" maxlength="512" placeholder='= str' value="{{ selected_sql_id }}">
+    </label>
+    <input type="hidden" name="do">
+    <input type="submit" value="Run">
+    <input id="top-activity-refresh" type="submit" name="refresh" value="Refresh">
+    <span class="form-caption" title="This view could be very slow...">&#128012</span>
+</form>
+{% include 'flashed.html' %}
+<div class="chart-grid">
+{% if top_activity is defined %}
+    <div class="chart-card chart-card-wide">
+        {{ top_activity|safe }}
+    </div>
+{% endif %}
+    <div class="chart-row">
+        {% if top_sql is defined and top_sql is not none %}
+            <div class="chart-card">
+                {{ top_sql|safe }}
+            </div>
+        {% endif %}
+
+        {% if top_objects is defined %}
+            <div class="chart-card">
+                {{ top_objects|safe }}
+            </div>
+        {% endif %}
+
+        {% if top_wait_events is defined and top_wait_events is not none %}
+            <div class="chart-card">
+                {{ top_wait_events|safe }}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% if slow_sql is defined and slow_sql %}
+<section class="data-section">
+    <div class="section-title">Slow Running SQL</div>
+    <style>
+    /* Make Sessions column smaller */
+    .slow-sql-table th:nth-child(4),
+    .slow-sql-table td:nth-child(4) {
+        width: 60px;
+        white-space: nowrap;
+        text-align: center;
+    }
+
+    /* Ensure width applies properly */
+    .slow-sql-table {
+        table-layout: fixed;
+    }
+    </style>
+    <table class="slow-sql-table list-table">
+        <thead>
+            <tr>
+                {% if can_manage_database %}<th>Action</th>{% endif %}
+                <th>SQL id</th>
+                <th>Runtime</th>
+                <th>Sessions</th>
+                <th>SQL text</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for sql_id, sql_text, runtime, sessions in slow_sql %}
+        <tr>
+            {% if can_manage_database %}
+                <td style="white-space:nowrap;">
+                    <button type="button" class="open-tune-modal action-button" data-sqlid="{{ sql_id }}" data-sqltext="{{ sql_text|e }}">Tune</button>
+                    <button type="button" class="open-kill-modal action-button" data-sqlid="{{ sql_id }}" data-sqltext="{{ sql_text|e }}" data-sessions="{{ sessions }}" style="margin-left:8px;">Kill</button>
+                </td>
+            {% endif %}
+            <td><a href="{{ url_for('get_query_plan', target=request.view_args['target'], query=sql_id) }}">{{ sql_id }}</a></td>
+            <td class="number-cell">{{ runtime }}</td>
+            <td class="number-cell">{{ sessions }}</td>
+            <td class="sql-preview"><a href="{{ url_for('get_query_plan', target=request.view_args['target'], query=sql_id) }}">{{ sql_text }}</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% if can_manage_database %}
+	    <!-- Kill confirmation modal for Top Activity slow SQL -->
+    <style>
+    .modal-overlay-top { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .modal-top { background: #fff; padding: 18px; border-radius: 6px; width: 720px; max-width: 95%; box-shadow: 0 6px 24px rgba(0,0,0,0.2); }
+    .modal-top h3 { margin-top: 0; }
+    .modal-top .meta { font-size: 0.95em; color: #333; margin-bottom: 8px; }
+    .modal-top .sql-preview { max-height: 220px; overflow: auto; white-space: pre-wrap; background: #f9f9f9; padding: 8px; border-radius: 4px; border: 1px solid #eee; }
+    .modal-top .actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+    .modal-top button { margin-left: 8px; }
+    </style>
+
+    <div id="killModalTop" class="modal-overlay-top" role="dialog" aria-hidden="true">
+      <div class="modal-top" role="document">
+        <h3>Confirm Kill Sessions for SQL</h3>
+        <div class="meta"><strong>SQL id:</strong> <span id="km-sqlid-top"></span></div>
+        <div class="meta"><strong>Active sessions:</strong> <span id="km-sessions-top"></span> &nbsp; <strong>Runtime:</strong> <span id="km-runtime-top"></span></div>
+        <div class="sql-preview" id="km-sqltext-top"></div>
+        <form id="killFormTop" method="post" action="{{ url_for('kill_sql', target=request.view_args['target']) }}">
+          <input type="hidden" name="sql_id" id="form-sqlid-top" value="">
+          <input type="hidden" name="return_to" id="form-return-top" value="{{ request.full_path }}">
+          <div class="actions">
+            <button type="button" id="km-cancel-top" class="action-button secondary-action-button">Cancel</button>
+            <button type="submit" id="km-kill-top" class="action-button">Kill sessions</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+<!-- Tune confirmation modal -->
+<div id="tuneModalTop" class="modal-overlay-top" role="dialog" aria-hidden="true" style="display:none;">
+    <div class="modal-top" role="document">
+        <h3>Confirm Run SQL Tuning Advisor</h3>
+        <div class="meta"><strong>SQL id:</strong> <span id="tt-sqlid-top"></span></div>
+        <div class="sql-preview" id="tt-sqltext-top"></div>
+        <form id="tuneFormTop" method="post" action="{{ url_for('run_sql_tuning_advisor', target=request.view_args['target']) }}">
+            <input type="hidden" name="sql_id" id="form-tune-sqlid-top" value="">
+            <input type="hidden" name="return_to" id="form-tune-return-top" value="{{ request.full_path }}">
+            <div class="actions">
+                <button type="button" id="tt-cancel-top" class="action-button secondary-action-button">Cancel</button>
+                <button type="submit" id="tt-run-top" class="action-button">Run Tuning</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+        // Tune modal handlers
+        const tuneModal = document.getElementById('tuneModalTop');
+        const ttSqlId = document.getElementById('tt-sqlid-top');
+        const ttSqlText = document.getElementById('tt-sqltext-top');
+        const formTuneSqlId = document.getElementById('form-tune-sqlid-top');
+        const cancelTune = document.getElementById('tt-cancel-top');
+
+        function openTuneModal(data) {
+                ttSqlId.textContent = data.sqlid || '';
+                ttSqlText.textContent = data.sqltext || '';
+                formTuneSqlId.value = data.sqlid || '';
+                tuneModal.style.display = 'flex';
+                tuneModal.setAttribute('aria-hidden', 'false');
+        }
+        function closeTuneModal() { tuneModal.style.display = 'none'; tuneModal.setAttribute('aria-hidden', 'true'); }
+
+        document.querySelectorAll('.open-tune-modal').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                        const sqlid = this.getAttribute('data-sqlid');
+                        const sqltext = this.getAttribute('data-sqltext') || '';
+                        openTuneModal({ sqlid: sqlid, sqltext: sqltext });
+                });
+        });
+        cancelTune.addEventListener('click', closeTuneModal);
+        tuneModal.addEventListener('click', function(e) { if (e.target === tuneModal) closeTuneModal(); });
+
+        // Intercept confirm-tune forms from Top SQL table
+        document.querySelectorAll('form.confirm-tune').forEach(function(frm) {
+                frm.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        const sqlid = frm.getAttribute('data-sqlid') || (frm.querySelector('input[name="sql_id"]') && frm.querySelector('input[name="sql_id"]').value);
+                        // fetch sql text if needed
+                        fetch("{{ url_for('get_sql_monitor_sql_text', target=request.view_args['target'], sql_id='') }}" + sqlid, { credentials: 'same-origin' })
+                                .then(r => r.json()).then(data => {
+                                        openTuneModal({ sqlid: sqlid, sqltext: data.sql_text || ''});
+                                }).catch(() => openTuneModal({ sqlid: sqlid, sqltext: ''}));
+                });
+        });
+});
+</script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('killModalTop');
+        const sqlIdEl = document.getElementById('km-sqlid-top');
+        const sessionsEl = document.getElementById('km-sessions-top');
+        const runtimeEl = document.getElementById('km-runtime-top');
+        const sqlTextEl = document.getElementById('km-sqltext-top');
+        const formSqlId = document.getElementById('form-sqlid-top');
+        const formReturn = document.getElementById('form-return-top');
+        const cancelBtn = document.getElementById('km-cancel-top');
+
+        function openModal(data) {
+            sqlIdEl.textContent = data.sqlid || '';
+            sessionsEl.textContent = data.sessions || '';
+            runtimeEl.textContent = data.runtime || '';
+            sqlTextEl.textContent = data.sqltext || '';
+            formSqlId.value = data.sqlid || '';
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+        }
+        function closeModal() { modal.style.display = 'none'; modal.setAttribute('aria-hidden', 'true'); }
+
+        document.querySelectorAll('.open-kill-modal').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const sqlid = this.getAttribute('data-sqlid');
+                const sqltext = this.getAttribute('data-sqltext');
+                const sessions = this.getAttribute('data-sessions');
+                openModal({ sqlid: sqlid, sqltext: sqltext, sessions: sessions, runtime: '' });
+            });
+        });
+
+        cancelBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+    });
+	    </script>
+{% endif %}
+{% elif slow_sql is defined and slow_sql is not none %}
+<section class="data-section">
+    <div class="section-title">Slow Running SQL</div>
+    <div class="form-caption">No slow queries running at the time.</div>
+</section>
+{% endif %}
+{% endblock %}

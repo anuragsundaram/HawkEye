@@ -1,0 +1,203 @@
+{% extends "layout.html" %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 style="margin:0;">Session Monitor</h2>
+</div>
+
+<form method="get" class="filter-form">
+    <label>Status
+        <select name="status" class="sql-text">
+            <option value="ACTIVE" {% if selected_status == 'ACTIVE' %}selected{% endif %}>ACTIVE</option>
+            <option value="INACTIVE" {% if selected_status == 'INACTIVE' %}selected{% endif %}>INACTIVE</option>
+            <option value="ALL" {% if selected_status == 'ALL' %}selected{% endif %}>ALL</option>
+        </select>
+    </label>
+    <input type="submit" value="Apply">
+</form>
+
+{% include 'flashed.html' %}
+
+<table class="list-table">
+    <thead>
+        <tr>
+            <th>SID</th>
+            <th>Serial#</th>
+            <th>SQL id</th>
+            <th>Command</th>
+            <th>User</th>
+            <th>Status</th>
+            <th>OS user</th>
+            <th>Machine</th>
+            <th>Program</th>
+            <th>Logon time</th>
+            <th>Last call</th>
+            <th>Wait class</th>
+            <th>Event</th>
+            {% if g.is_admin %}<th>Action</th>{% endif %}
+        </tr>
+    </thead>
+    <tbody>
+    {% if rows %}
+        {% for r in rows %}
+        <tr>
+            <td>{{ r[0] }}</td>
+            <td>{{ r[1] }}</td>
+            <td>{% if r[2] %}<a href="{{ url_for('get_query', target=request.view_args['target'], query=r[2]) }}">{{ r[2] }}</a>{% else %}-{% endif %}</td>
+            <td>{{ r[3] or '' }}</td>
+            <td>{{ r[4] or '' }}</td>
+            <td>{{ r[5] or '' }}</td>
+            <td>{{ r[6] or '' }}</td>
+            <td>{{ r[7] or '' }}</td>
+            <td>{{ r[8] or '' }}</td>
+            <td>{% if r[9] %}{{ r[9].strftime(config['DATETIME_FORMAT']) }}{% endif %}</td>
+            <td>{{ r[10] or '' }}</td>
+            <td>{{ r[11] or '' }}</td>
+            <td>{{ r[12] or '' }}</td>
+            {% if g.is_admin %}
+                <td>
+                    <button type="button"
+                        class="open-kill-modal action-button"
+                        data-sid="{{ r[0] }}"
+                        data-serial="{{ r[1] }}"
+                        data-user="{{ r[4] or '' }}"
+                        data-module="{{ r[8] or '' }}"
+                        data-status="{{ r[5] or '' }}"
+                        data-machine="{{ r[7] or '' }}"
+                        data-program="{{ r[8] or '' }}">
+                        Kill
+                    </button>
+                </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    {% else %}
+        <tr><td colspan="{{ 14 if g.is_admin else 13 }}">No sessions found.</td></tr>
+    {% endif %}
+    </tbody>
+</table>
+
+{% if g.is_admin %}
+	<!-- Modal -->
+<style>
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal {
+    background: #fff;
+    padding: 18px;
+    border-radius: 8px;
+    width: 650px;
+    max-width: 95%;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+}
+
+.modal h3 { margin-top: 0; }
+
+.modal .meta {
+    font-size: 0.95em;
+    margin-bottom: 6px;
+}
+
+.session-preview {
+    max-height: 120px;
+    overflow: auto;
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #eee;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+}
+
+.modal .actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+</style>
+
+<div id="killModal" class="modal-overlay">
+  <div class="modal">
+    <h3>Confirm Kill Session</h3>
+
+    <div class="meta"><b>Session:</b> <span id="km-sid"></span>, <span id="km-serial"></span></div>
+    <div class="meta"><b>User:</b> <span id="km-user"></span></div>
+    <div class="meta"><b>Status:</b> <span id="km-status"></span></div>
+    <div class="meta"><b>Machine:</b> <span id="km-machine"></span></div>
+
+    <div class="session-preview" id="km-preview"></div>
+
+    <form method="post" action="{{ url_for('kill_session', target=request.view_args['target']) }}">
+        <input type="hidden" name="sid" id="form-sid">
+        <input type="hidden" name="serial" id="form-serial">
+        <input type="hidden" name="action" value="kill">
+        <input type="hidden" name="return_to" value="{{ request.full_path }}">
+
+        <div class="actions">
+            <!-- ✅ FIXED CANCEL BUTTON -->
+            <button type="button" id="km-cancel" class="action-button secondary-action-button">Cancel</button>
+            <button type="submit" class="action-button">Kill Session</button>
+        </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('killModal');
+
+    const sidEl = document.getElementById('km-sid');
+    const serialEl = document.getElementById('km-serial');
+    const userEl = document.getElementById('km-user');
+    const statusEl = document.getElementById('km-status');
+    const machineEl = document.getElementById('km-machine');
+    const previewEl = document.getElementById('km-preview');
+
+    const formSid = document.getElementById('form-sid');
+    const formSerial = document.getElementById('form-serial');
+
+    function openModal(data) {
+        sidEl.textContent = data.sid;
+        serialEl.textContent = data.serial;
+        userEl.textContent = data.user;
+        statusEl.textContent = data.status;
+        machineEl.textContent = data.machine;
+
+        previewEl.textContent =
+            "Module: " + data.module + "\n" +
+            "Program: " + data.program;
+
+        formSid.value = data.sid;
+        formSerial.value = data.serial;
+
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    document.querySelectorAll('.open-kill-modal').forEach(btn => {
+        btn.addEventListener('click', function() {
+            openModal(this.dataset);
+        });
+    });
+
+    document.getElementById('km-cancel').addEventListener('click', closeModal);
+
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) closeModal();
+    });
+});
+	</script>
+{% endif %}
+
+{% endblock %}
