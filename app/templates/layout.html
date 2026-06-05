@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
-    <title>{{ g.title.get(request.endpoint, 'Hwakeye - Database Monitoring') }} {{ request.view_args.values()|list|last }}</title>
+    <title>{{ g.title.get(request.endpoint, 'HawkEye - Database Monitoring') }} {{ request.view_args.values()|list|last }}</title>
 </head>
 <body>
     <div class="flex-container">
         <div class="flex-header">
-            <div class="brand"><a href="{{ url_for('get_welcome_page') }}"><div class="logo-container"><div class="logo-text">⚙️ Hwakeye - Database Monitoring</div><div class="logo-subtitle">Real-time Database Insights</div></div></a></div>
+            <div class="brand"><a href="{{ url_for('get_welcome_page') }}"><div class="logo-container"><div class="logo-text">⚙️ HawkEye - Database Monitoring</div><div class="logo-subtitle">Real-time Database Insights</div></div></a></div>
             <div class="targets">
                 <form id="target-select-form" method="get">
                     <label class="target-select-label" for="target-select">Database</label>

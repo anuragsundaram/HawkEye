@@ -280,8 +280,8 @@ tr:hover {
 }
 
 .brand {
-  flex: 0 1 260px;
-  min-width: 190px;
+  flex: 0 0 340px;
+  min-width: 320px;
 }
 
 .logo-container {
@@ -308,6 +308,7 @@ tr:hover {
   align-items: center;
   flex: 1 1 auto;
   min-width: 180px;
+  margin-left: 12px;
 }
 
 .targets form {
@@ -854,6 +855,15 @@ select.sql-text {
   .filter-form {
     width: 100%;
     max-width: 100%;
+  }
+
+  .brand {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .targets {
+    margin-left: 0;
   }
 
   .top-status {
