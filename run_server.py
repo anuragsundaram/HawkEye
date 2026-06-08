@@ -33,7 +33,7 @@ def main():
         logger.info("=" * 70)
         
         # Get configuration
-        host = app.config.get('HOST', '127.0.0.1')
+        host = app.config.get('HOST', '0.0.0.0')
         port = app.config.get('PORT', 5000)
         debug = app.config.get('DEBUG', False)
         

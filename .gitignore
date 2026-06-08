@@ -13,3 +13,7 @@ htmlcov/
 # Runtime data
 app/data/
 app/logs/
+
+# Agent data
+.codex/
+.agents/
