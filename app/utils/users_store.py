@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 from flask import current_app, has_app_context
 from werkzeug.security import generate_password_hash, check_password_hash
+import re
 
 DB_DIR = path.join(path.dirname(__file__), '..', 'data')
 DB_FILE = path.join(DB_DIR, 'users.db')
@@ -155,6 +156,28 @@ def get_users_dict():
         if u['is_admin']:
             admins.append(u['username'])
     return d, admins
+
+
+def validate_password_complexity(password):
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one number"
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return False, "Password must contain at least one special character"
+
+    # Check for 3 sequential characters or numbers
+    # We can check by comparing ASCII values for 3-length windows
+    password = password.lower()
+    for i in range(len(password) - 2):
+        if (ord(password[i]) + 1 == ord(password[i+1]) and ord(password[i+1]) + 1 == ord(password[i+2])):
+            return False, "Password cannot contain 3 sequential characters or numbers"
+
+    return True, ""
 
 
 def verify_password(username, password):
