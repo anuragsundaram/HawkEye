@@ -1,4 +1,4 @@
-# HawkEye - Database Monitoring Dashboard
+# HawkEye - Database Monitoring Dashboard (Only Oracle 12c+ Supported for now)
 
 HawkEye is a modern, real-time database monitoring application designed to provide crucial insights into your Oracle database. Featuring an intuitive web-based dashboard built on Python, Flask, and the modern `oracledb` python driver, HawkEye helps database administrators monitor queries, sessions, workloads, and targets smoothly in real-time.
 
