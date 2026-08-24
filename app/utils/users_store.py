@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 from flask import current_app, has_app_context
 from werkzeug.security import generate_password_hash, check_password_hash
+import re
 
 DB_DIR = path.join(path.dirname(__file__), '..', 'data')
 DB_FILE = path.join(DB_DIR, 'users.db')
@@ -134,6 +135,17 @@ def set_user_targets(username, targets):
     conn.close()
 
 
+def set_user_password(username, new_password):
+    """Set the password for a user."""
+    init_db()
+    conn = _get_conn()
+    cur = conn.cursor()
+    pwd_hash = generate_password_hash(new_password)
+    cur.execute('UPDATE users SET password_hash = ? WHERE username = ?', (pwd_hash, username))
+    conn.commit()
+    conn.close()
+
+
 def get_users_dict():
     """Return dict in the format used by app.config['USERS'] and list of admins."""
     users = list_users()
@@ -146,6 +158,28 @@ def get_users_dict():
     return d, admins
 
 
+def validate_password_complexity(password):
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r'\d', password):
+        return False, "Password must contain at least one number"
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return False, "Password must contain at least one special character"
+
+    # Check for 3 sequential characters or numbers
+    # We can check by comparing ASCII values for 3-length windows
+    password = password.lower()
+    for i in range(len(password) - 2):
+        if (ord(password[i]) + 1 == ord(password[i+1]) and ord(password[i+1]) + 1 == ord(password[i+2])):
+            return False, "Password cannot contain 3 sequential characters or numbers"
+
+    return True, ""
+
+
 def verify_password(username, password):
     init_db()
     conn = _get_conn()
@@ -153,6 +187,6 @@ def verify_password(username, password):
     cur.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
     row = cur.fetchone()
     conn.close()
-    if not row:
-        return False
-    return check_password_hash(row['password_hash'], password)
+    if row:
+        return check_password_hash(row['password_hash'], password)
+    return False

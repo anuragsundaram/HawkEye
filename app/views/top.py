@@ -323,12 +323,15 @@ def run_sql_tuning_advisor(target):
 @app.route('/<target>/tuning_advisor')
 @title('Tuning Advisor')
 def get_tuning_advisor(target):
-    selected_day = request.args.get('task_day', datetime.now().strftime('%Y-%m-%d'))
+    from_date = request.args.get('from_date', datetime.now().strftime('%Y-%m-%d'))
+    till_date = request.args.get('till_date', datetime.now().strftime('%Y-%m-%d'))
     try:
-        datetime.strptime(selected_day, '%Y-%m-%d')
+        datetime.strptime(from_date, '%Y-%m-%d')
+        datetime.strptime(till_date, '%Y-%m-%d')
     except ValueError:
-        flash('Incorrect value: task_day')
-        selected_day = datetime.now().strftime('%Y-%m-%d')
+        flash('Incorrect date format')
+        from_date = datetime.now().strftime('%Y-%m-%d')
+        till_date = datetime.now().strftime('%Y-%m-%d')
     tasks = execute(target,
                     ("select owner, task_name, created, execution_start, execution_end, status,"
                      " case"
@@ -340,11 +343,11 @@ def get_tuning_advisor(target):
                      " description, status_message"
                      " from dba_advisor_tasks"
                      " where advisor_name = 'SQL Tuning Advisor'"
-                     " and created >= to_date(:task_day, 'yyyy-mm-dd')"
-                     " and created < to_date(:task_day, 'yyyy-mm-dd') + 1"
+                     " and created >= to_date(:from_date, 'yyyy-mm-dd')"
+                     " and created < to_date(:till_date, 'yyyy-mm-dd') + 1"
                      " order by created desc"),
-                    {'task_day': selected_day})
-    return render_template('tuning_advisor.html', selected_day=selected_day, tasks=tasks)
+                    {'from_date': from_date, 'till_date': till_date})
+    return render_template('tuning_advisor.html', from_date=from_date, till_date=till_date, tasks=tasks)
 
 
 @app.route('/<target>/tuning_advisor/report')

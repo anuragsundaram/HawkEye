@@ -45,7 +45,7 @@ for view_module in (
     'app.views.view',
 ):
     import_module(view_module)
-from app.ext import *
+
 
 # Prepare views' metadata
 title = {k: getattr(f, 'title', '') for k, f in app.view_functions.items()}

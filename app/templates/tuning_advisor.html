@@ -1,8 +1,11 @@
 {% extends "layout.html" %}
 {% block content %}
 <form method="get">
-    <label>Task day
-        <input type="date" class="sql-text" name="task_day" value="{{ selected_day }}">
+    <label>From date
+        <input type="date" class="sql-text" name="from_date" value="{{ from_date }}">
+    </label>
+    <label>Till date
+        <input type="date" class="sql-text" name="till_date" value="{{ till_date }}">
     </label>
     <input type="submit" value="Run">
 </form>

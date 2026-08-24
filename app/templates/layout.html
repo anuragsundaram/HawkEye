@@ -4,10 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
-    <title>{{ g.title.get(request.endpoint, 'HawkEye - Database Monitoring') }} {{ request.view_args.values()|list|last }}</title>
+    <title>{{ g.title.get(request.endpoint, 'HawkEye - Database Monitoring') }} {{ request.view_args.get('target') }}</title>
 </head>
 <body>
     <div class="flex-container">
+        {% include 'flashed.html' %}
+        <!-- Success Modal -->
+        <div id="successModal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
+            <div style="background:#fff; margin:15% auto; padding:20px; width:300px; border-radius:5px; text-align:center; box-shadow:0 0 10px rgba(0,0,0,0.3);">
+                <h3 style="color:#2196F3;">Success</h3>
+                <p>Password changed successfully!</p>
+                <button style="margin-top:15px; padding:8px 16px; background:#2196F3; color:white; border:none; border-radius:4px; cursor:pointer;" onclick="document.getElementById('successModal').style.display='none'">OK</button>
+            </div>
+        </div>
+        
         <div class="flex-header">
             <div class="brand"><a href="{{ url_for('get_welcome_page') }}"><div class="logo-container"><div class="logo-text">⚙️ HawkEye - Database Monitoring</div><div class="logo-subtitle">Real-time Database Insights</div></div></a></div>
             <div class="targets">
@@ -25,7 +35,13 @@
             </div>
             <div class="top-status">
                 <time id="live-clock" class="live-clock" datetime=""></time>
-                <div class="user-chip" title="Signed in user">{{ session.get('user_name', 'User') }}</div>
+                <div class="user-chip-dropdown">
+                    <div class="user-chip" title="Signed in user">{{ session.get('user_name', 'User') }}</div>
+                    <div class="dropdown-content">
+                        <a href="{{ url_for('change_password') }}">Change Password</a>
+                        <a href="{{ url_for('logout') }}">Logout</a>
+                    </div>
+                </div>
             </div>
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
@@ -65,7 +81,7 @@
                 {% for top_item in menu_tree.keys() if top_item not in ('get_app', 'logout') %}
                     {% set param = menu_tree[top_item][0] %}
                     {% set has_targets = (config['TARGETS']|length) > 0 %}
-                    {% if top_item == request.endpoint or request.view_args.get(param) or (param == 'target' and has_targets) %}
+                    {% if top_item == request.endpoint or (request.view_args and request.view_args.get(param)) or (param == 'target' and has_targets) %}
                         {% if param == 'target' and not request.view_args.get('target') and has_targets %}
                             {% set first_target = (config['TARGETS'].keys()|list)[0] %}
                             <a href="{{ url_for(top_item, target=first_target) }}" class="top-menu-item{% if top_item == request.endpoint %} selected{% endif %}">{{ g.title[top_item] }}</a>
