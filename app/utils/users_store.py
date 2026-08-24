@@ -134,6 +134,17 @@ def set_user_targets(username, targets):
     conn.close()
 
 
+def set_user_password(username, new_password):
+    """Set the password for a user."""
+    init_db()
+    conn = _get_conn()
+    cur = conn.cursor()
+    pwd_hash = generate_password_hash(new_password)
+    cur.execute('UPDATE users SET password_hash = ? WHERE username = ?', (pwd_hash, username))
+    conn.commit()
+    conn.close()
+
+
 def get_users_dict():
     """Return dict in the format used by app.config['USERS'] and list of admins."""
     users = list_users()
@@ -153,6 +164,6 @@ def verify_password(username, password):
     cur.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
     row = cur.fetchone()
     conn.close()
-    if not row:
-        return False
-    return check_password_hash(row['password_hash'], password)
+    if row:
+        return check_password_hash(row['password_hash'], password)
+    return False

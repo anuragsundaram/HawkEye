@@ -17,3 +17,4 @@ app/logs/
 # Agent data
 .codex/
 .agents/
+.venv/

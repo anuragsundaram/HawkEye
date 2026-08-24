@@ -213,6 +213,43 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/change_password', methods=['GET', 'POST'])
+@title('Change Password')
+def change_password():
+    from app.utils.users_store import get_users_dict
+    users_dict, admins = get_users_dict()
+    
+    if 'user_name' not in session:
+        return redirect(url_for('login'))
+        
+    if request.method == 'GET':
+        return render_template('change_password.html', get_users_dict=get_users_dict)
+    if request.method == 'POST':
+        old_password = request.form.get('old_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+
+        if not new_password or not confirm_password:
+            flash('All passwords are required', 'error')
+            return redirect(url_for('change_password'))
+
+        if new_password != confirm_password:
+            flash('New passwords do not match', 'error')
+            return redirect(url_for('change_password'))
+
+        from app.utils.users_store import verify_password, set_user_password, get_users_dict
+        uname = session['user_name']
+        users_dict, admins = get_users_dict()
+        
+        # Admins don't need to provide old password
+        if uname in admins or verify_password(uname, old_password):
+            set_user_password(uname, new_password)
+            return render_template('change_password.html', show_success=True, get_users_dict=get_users_dict)
+        else:
+            flash('Invalid current password')
+            return redirect(url_for('change_password'))
+
+
 @app.route('/adm/users', methods=['GET'])
 @title('Manage Users')
 def get_users_admin():
@@ -273,6 +310,42 @@ def post_users_delete(username):
         flash(f'User {username} deleted', 'success')
     except Exception as e:
         flash(f'Error deleting user: {str(e)}', 'error')
+    return redirect(url_for('get_users_admin'))
+
+
+@app.route('/adm/users/password', methods=['POST'])
+@title('Manage Users')
+def post_users_password():
+    from app.utils.users_store import set_user_password, get_users_dict
+
+    # Check if admin
+    users_dict, admins = get_users_dict()
+    is_admin = session.get('user_name') in admins
+    username = request.form.get('username')
+    new_password = request.form.get('password')
+
+    # Allow admin to change anyone's password OR allow user to change their own with old password verification
+    if not is_admin and username != session.get('user_name'):
+        flash('Permission denied', 'error')
+        return redirect(url_for('get_users_admin'))
+
+    # If the user is NOT an admin, or if an admin is changing someone else's password, 
+    # we might still want to optionally check old password if specified in the form.
+    # For now, let's keep the business logic simple:
+    # If admin changing own password: simple set.
+    # If user changing own password: simple change_password route exists, use that.
+    # If admin changing someone else's password: simple set.
+
+    if not username or not new_password:
+        flash('Username and password are required', 'error')
+        return redirect(url_for('get_users_admin'))
+
+    try:
+        set_user_password(username, new_password)
+        # Use an admin-specific session flag to trigger modal
+        session['show_password_success'] = username
+    except Exception as e:
+        flash(f'Error updating password: {str(e)}', 'error')
     return redirect(url_for('get_users_admin'))
 
 
