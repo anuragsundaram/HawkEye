@@ -106,7 +106,7 @@ def post_targets_add():
         with lock:
             app.config['USERS'] = users_dict
             app.config['ADMIN_GROUP'] = admins
-        flash(f'Target {name} added and granted to all admins', 'success')
+        session['show_target_success'] = True
     except Exception as e:
         flash(f'Error adding target: {str(e)}', 'error')
     return redirect(url_for('get_targets_admin'))
