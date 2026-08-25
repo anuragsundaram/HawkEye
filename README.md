@@ -10,7 +10,7 @@ HawkEye is a modern, real-time database monitoring application designed to provi
 - **Role-Based Access**: Manage active viewers and grant detailed administrator permissions to other database specialists via local store mechanism securely.
 - **Detailed Error Handling & Modal Support**: Sleek inline error handlers and action confirmations built natively without needing to navigate away from context. 
 
-<img width="1137" height="769" alt="image" src="https://github.com/user-attachments/assets/a2c36afb-01d9-4186-9c0d-a8b7466e4884" />
+<img width="700" height="400" alt="image" src="https://github.com/user-attachments/assets/a2c36afb-01d9-4186-9c0d-a8b7466e4884" />
 
 
 ## Requirements
