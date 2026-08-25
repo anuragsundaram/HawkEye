@@ -11,6 +11,8 @@ HawkEye is a modern, real-time database monitoring application designed to provi
 - **Detailed Error Handling & Modal Support**: Sleek inline error handlers and action confirmations built natively without needing to navigate away from context. 
 
 <img width="700" height="400" alt="image" src="https://github.com/user-attachments/assets/a2c36afb-01d9-4186-9c0d-a8b7466e4884" />
+<img width="700" height="400" alt="image" src="https://github.com/user-attachments/assets/bc6bad68-dd0f-4a4f-bbdd-5c5f109ef418" />
+<img width="700" height="400" alt="image" src="https://github.com/user-attachments/assets/70919c9f-d3a8-4c5e-a8e0-2d1801df7c75" />
 
 
 ## Requirements
