@@ -919,8 +919,28 @@ select.sql-text {
 }
 
 
+.view-message {
+  margin: 6px 0;
+}
+
+.view-message-error {
+  color: var(--danger-color);
+}
+
+.view-message-success {
+  color: var(--success-color);
+}
+
+.view-message-warning {
+  color: var(--warning-color);
+}
+
+.view-message-info {
+  color: var(--primary-color);
+}
+
 .view-error {
-  color: tomato;
+  color: var(--danger-color);
 }
 
 .table-hint {
