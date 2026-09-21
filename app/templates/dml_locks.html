@@ -21,7 +21,20 @@
     </div>
 </div>
 
-{% include 'flashed.html' %}
+{% set dml_messages = get_flashed_messages(with_categories=true) %}
+{% if dml_messages %}
+<div id="killResultModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="kill-result-title">
+    <div class="modal kill-result-modal">
+        <h3 id="kill-result-title">Kill Result</h3>
+        {% for category, message in dml_messages %}
+        <p class="kill-result-message kill-result-{{ category|default('info', true) }}">{{ message }}</p>
+        {% endfor %}
+        <div class="actions">
+            <button type="button" id="kill-result-close" class="action-button">OK</button>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <table class="list-table">
     <thead>
@@ -60,6 +73,19 @@
 }
 
 .modal h3 { margin-top: 0; }
+
+.kill-result-modal {
+    max-width: 460px;
+}
+
+.kill-result-message {
+    margin: 8px 0;
+}
+
+.kill-result-error { color: var(--danger-color); }
+.kill-result-success { color: var(--success-color); }
+.kill-result-warning { color: var(--warning-color); }
+.kill-result-info { color: var(--primary-color); }
 
 .modal .meta {
     font-size: 0.95em;
@@ -308,6 +334,14 @@ document.addEventListener('DOMContentLoaded', function() {
 	        document.getElementById('killModal').onclick = e => { if (e.target.id === 'killModal') closeModal('killModal'); };
 	        document.getElementById('killAllModal').onclick = e => { if (e.target.id === 'killAllModal') closeModal('killAllModal'); };
 	    }
+
+        const killResultModal = document.getElementById('killResultModal');
+        const killResultClose = document.getElementById('kill-result-close');
+        if (killResultModal && killResultClose) {
+            killResultModal.style.display = 'flex';
+            killResultClose.onclick = () => closeModal('killResultModal');
+            killResultModal.onclick = e => { if (e.target === killResultModal) closeModal('killResultModal'); };
+        }
 
     load();
 });

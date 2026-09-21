@@ -8,7 +8,9 @@
 </head>
 <body>
     <div class="flex-container">
-        {% include 'flashed.html' %}
+        {% if request.endpoint != 'get_dml_locks' %}
+            {% include 'flashed.html' %}
+        {% endif %}
         <!-- Success Modal -->
         <div id="successModal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
             <div style="background:#fff; margin:15% auto; padding:20px; width:300px; border-radius:5px; text-align:center; box-shadow:0 0 10px rgba(0,0,0,0.3);">

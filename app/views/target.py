@@ -387,7 +387,7 @@ def kill_session(target):
         kill_sql = f"ALTER SYSTEM KILL SESSION '{sid},{serial}' IMMEDIATE"
         # ALTER SYSTEM KILL SESSION does not return rows — use 'none'
         execute(target, kill_sql, fetch_mode='none', user_context=True)
-        flash(f'Session {sid},{serial} marked for kill', 'success')
+        flash(f'Session {sid},{serial} killed', 'success')
     except Exception as e:
         flash(f'Error killing session: {str(e)}', 'error')
 
@@ -423,7 +423,7 @@ def kill_sql(target):
             except Exception as e:
                 errors.append(f"{sid},{serial}: {str(e)}")
         if killed:
-            flash(f'{killed} Sessions for sqlid({sql_id}) marked for kill', 'success')
+            flash(f'SQL ID {sql_id}: {killed} sessions killed', 'success')
         if errors:
             flash('Errors: ' + '; '.join(errors), 'error')
     except Exception as e:
