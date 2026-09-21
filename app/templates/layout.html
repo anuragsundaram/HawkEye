@@ -86,14 +86,14 @@
                     {% if top_item == request.endpoint or (request.view_args and request.view_args.get(param)) or (param == 'target' and has_targets) %}
                         {% if param == 'target' and not request.view_args.get('target') and has_targets %}
                             {% set first_target = (config['TARGETS'].keys()|list)[0] %}
-                            <a href="{{ url_for(top_item, target=first_target) }}" class="top-menu-item{% if top_item == request.endpoint %} selected{% endif %}">{{ g.title[top_item] }}</a>
+                            <a href="{{ url_for(top_item, target=first_target) }}" class="top-menu-item{% if top_item == request.endpoint or (top_item == 'get_target' and request.endpoint == 'get_tuning_advisor_report') %} selected{% endif %}">{{ g.title[top_item] }}</a>
                         {% elif request.view_args.get(param) %}
-                            <a href="{{ url_for(top_item, **request.view_args) }}" class="top-menu-item{% if top_item == request.endpoint %} selected{% endif %}">{{ g.title[top_item] }}</a>
+                            <a href="{{ url_for(top_item, **request.view_args) }}" class="top-menu-item{% if top_item == request.endpoint or (top_item == 'get_target' and request.endpoint == 'get_tuning_advisor_report') %} selected{% endif %}">{{ g.title[top_item] }}</a>
                         {% else %}
-                            <a href="{{ url_for(top_item) }}" class="top-menu-item{% if top_item == request.endpoint %} selected{% endif %}">{{ g.title[top_item] }}</a>
+                            <a href="{{ url_for(top_item) }}" class="top-menu-item{% if top_item == request.endpoint or (top_item == 'get_target' and request.endpoint == 'get_tuning_advisor_report') %} selected{% endif %}">{{ g.title[top_item] }}</a>
                         {% endif %}
                     {% endif %}
-                    {% if request.endpoint in menu_tree[top_item][1] or request.endpoint == top_item %}
+                    {% if request.endpoint in menu_tree[top_item][1] or request.endpoint == top_item or (top_item == 'get_target' and request.endpoint == 'get_tuning_advisor_report') %}
                         {% for sub_item in menu_tree[top_item][1] %}
                             {% if sub_item not in config['TARGET_SPECIFIC_VIEWS'].keys() or request.view_args.get('target', '') in config['TARGET_SPECIFIC_VIEWS'][sub_item] %}
                                 <a href="{{ url_for(sub_item, **request.view_args) }}" class="sub-menu-item{% if request.endpoint == sub_item %} selected{% endif %}">{{ g.title[sub_item] }}</a>
