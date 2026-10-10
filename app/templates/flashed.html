@@ -1,3 +1,3 @@
-{% for message in get_flashed_messages() %}
-    <div class="view-error">{{ message }}</div>
+{% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="view-message view-message-{{ category|default('info', true) }}">{{ message }}</div>
 {% endfor %}

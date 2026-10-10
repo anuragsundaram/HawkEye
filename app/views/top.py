@@ -61,7 +61,8 @@ def get_top_activity_state(target):
     key = top_activity_state_key(target)
     state = session.get(key)
     refresh_requested = 'refresh' in request.args
-    if not state or refresh_requested:
+    first_page_load = not request.args
+    if not state or refresh_requested or first_page_load:
         state = initial_top_activity_state()
     if 'do' in request.args and not refresh_requested:
         state = {
