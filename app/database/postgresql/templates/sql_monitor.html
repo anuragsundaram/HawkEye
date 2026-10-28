@@ -1,0 +1,173 @@
+{% extends "layout.html" %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 style="margin:0;">SQL Monitor</h2>
+    <button id="refresh-sql" class="refresh-btn"><span class="refresh-icon">↻</span> Refresh</button>
+</div>
+{% include 'flashed.html' %}
+
+<table class="list-table">
+    <thead>
+        <tr>
+            <th>PID</th>
+            <th>Query hash</th>
+            <th>SQL text</th>
+            <th>User</th>
+            <th>Application</th>
+            <th>Elapsed (s)</th>
+            <th>Wait event</th>
+            <th>Client</th>
+            {% if can_manage_database %}<th>Action</th>{% endif %}
+        </tr>
+    </thead>
+    <tbody id="sql-body">
+        <tr><td colspan="{{ 9 if can_manage_database else 8 }}">Loading active SQL...</td></tr>
+    </tbody>
+</table>
+
+<style>
+.refresh-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+.refresh-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6); }
+.refresh-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+.refresh-icon { display: inline-block; transition: transform 0.6s linear; }
+.refresh-btn:disabled .refresh-icon { animation: spin 0.8s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+{% if can_manage_database %}
+<style>
+    .sql-monitor-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:2000; }
+    .sql-monitor-modal { background:#fff; padding:18px; border-radius:6px; width:640px; max-width:95%; box-shadow:0 6px 24px rgba(0,0,0,.2); }
+    .sql-monitor-modal h3 { margin-top:0; }
+    .sql-monitor-modal .sql-preview { max-height:160px; overflow:auto; white-space:pre-wrap; background:#f9f9f9; padding:8px; border-radius:4px; border:1px solid #eee; }
+    .sql-monitor-modal .actions { margin-top:12px; display:flex; justify-content:flex-end; gap:8px; }
+</style>
+<div id="terminateModal" class="sql-monitor-modal-overlay" role="dialog" aria-hidden="true">
+    <div class="sql-monitor-modal" role="document">
+        <h3>Confirm Termination</h3>
+        <p><strong>PID:</strong> <span id="terminate-pid"></span> &nbsp;
+            <strong>User:</strong> <span id="terminate-user"></span> &nbsp;
+            <strong>Application:</strong> <span id="terminate-application"></span></p>
+        <div class="sql-preview" id="terminate-query"></div>
+        <form method="post" action="{{ url_for('terminate_postgresql_session', target=target) }}">
+            <input type="hidden" name="pid" id="terminate-pid-value">
+            <input type="hidden" name="return_to" value="sql_monitor">
+            <div class="actions">
+                <button type="button" id="terminate-cancel" class="action-button secondary-action-button">Cancel</button>
+                <button type="submit" class="action-button">Terminate session</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dataUrl = {{ url_for('get_sql_monitor_data', target=target)|tojson }};
+    const refreshButton = document.getElementById('refresh-sql');
+    const canManageDatabase = {{ can_manage_database|tojson }};
+    const body = document.getElementById('sql-body');
+    const modal = canManageDatabase ? document.getElementById('terminateModal') : null;
+
+    function renderRows(rows) {
+        body.replaceChildren();
+        if (!rows.length) {
+            const row = body.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = canManageDatabase ? 9 : 8;
+            cell.textContent = 'No executing SQL found.';
+            return;
+        }
+
+        rows.forEach(function(item) {
+            const row = body.insertRow();
+            [
+                item.pid,
+                item.query_hash || '-',
+                item.query_text || '',
+                item.username || '',
+                item.application || '',
+                item.elapsed_seconds == null ? '' : item.elapsed_seconds,
+                item.wait_event || '',
+                item.client_addr || ''
+            ].forEach(function(value, index) {
+                const cell = row.insertCell();
+                cell.textContent = value;
+                if (index === 2) {
+                    cell.className = 'sql-preview';
+                    cell.title = value;
+                }
+                if (index === 0 || index === 5) {
+                    cell.classList.add('number-cell');
+                }
+            });
+
+            if (canManageDatabase) {
+                const actionCell = row.insertCell();
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'action-button';
+                button.textContent = 'Terminate';
+                button.addEventListener('click', function() {
+                    document.getElementById('terminate-pid').textContent = item.pid;
+                    document.getElementById('terminate-user').textContent = item.username || '';
+                    document.getElementById('terminate-application').textContent = item.application || '';
+                    document.getElementById('terminate-query').textContent = item.query_text || '';
+                    document.getElementById('terminate-pid-value').value = item.pid;
+                    modal.style.display = 'flex';
+                    modal.setAttribute('aria-hidden', 'false');
+                });
+                actionCell.appendChild(button);
+            }
+        });
+    }
+
+    async function load() {
+        refreshButton.disabled = true;
+        try {
+            const response = await fetch(dataUrl, {credentials: 'same-origin'});
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load SQL activity.');
+            }
+            renderRows(data);
+        } catch (error) {
+            body.replaceChildren();
+            const row = body.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = canManageDatabase ? 9 : 8;
+            cell.textContent = 'Error loading: ' + error.message;
+        } finally {
+            refreshButton.disabled = false;
+        }
+    }
+
+    refreshButton.addEventListener('click', load);
+    if (canManageDatabase) {
+        const closeModal = function() {
+            modal.style.display = 'none';
+            modal.setAttribute('aria-hidden', 'true');
+        };
+        document.getElementById('terminate-cancel').addEventListener('click', closeModal);
+        modal.addEventListener('click', function(event) {
+            if (event.target === modal) closeModal();
+        });
+    }
+    load();
+});
+</script>
+{% endblock %}

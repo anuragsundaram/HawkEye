@@ -1,0 +1,11 @@
+{% extends "layout.html" %}
+{% block content %}
+{% include 'flashed.html' %}
+{% if report %}
+<div style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="section-title">{{ task_name }}</div>
+    <a class="action-button" href="{{ url_for('get_tuning_advisor_report', target=request.view_args['target'], owner=request.args.get('owner'), task_name=task_name, format='txt') }}">Export .txt</a>
+</div>
+<pre class="sql-full-text">{{ report }}</pre>
+{% endif %}
+{% endblock %}

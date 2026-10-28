@@ -1,6 +1,6 @@
 import pytest
 from app import app
-from app.utils.oracle import ping
+from app.database.oracle.adapter import ping
 from unittest.mock import patch
 
 def test_ping_failure():

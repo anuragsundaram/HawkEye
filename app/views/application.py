@@ -1,15 +1,21 @@
 from os import path
-from platform import platform
 from time import sleep
+from urllib.parse import urlsplit
 
-import oracledb
 from flask import abort, flash, redirect, render_template, request, send_file, session, url_for
 
-from app import active_connections, app, lock, startup_time, target_pool
+from app import active_connections, app, lock, startup_time
 from app.utils.decorate_view import *
-from app.utils.targets_store import list_targets, add_target, delete_target, get_targets_dict
+from app.utils.targets_store import (
+    add_target,
+    delete_target,
+    get_targets_dict,
+    group_targets_by_database,
+    list_targets,
+)
 from app.utils.users_store import set_user_targets, list_users, get_users_dict
-from app.utils.oracle import ping
+from app.database.common.adapters import cancel_active, close_target_pool, get_adapter
+from app.database.common.registration import validate_database_connection
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -52,6 +58,16 @@ def get_user():
 @app.route('/adm')
 @title('Administration')
 def get_app():
+    return_to = request.args.get('return_to', '')
+    parsed_return_to = urlsplit(return_to)
+    if (
+        return_to.startswith('/')
+        and not return_to.startswith('//')
+        and not parsed_return_to.scheme
+        and not parsed_return_to.netloc
+        and '\\' not in return_to
+    ):
+        session['admin_return_to'] = return_to
     # Redirect to targets admin page (manage DB targets is the new admin)
     return redirect(url_for('get_targets_admin'))
 
@@ -60,15 +76,20 @@ def get_app():
 @title('DB Targets')
 def get_targets_admin():
     targets = list_targets()
+    target_groups = group_targets_by_database(targets)
     # Determine connection status for each target
     statuses = {}
     for t in targets:
         try:
-            st = ping(t['name'])
+            st = get_adapter(t['name']).ping(t['name'])
             statuses[t['name']] = 'connected' if st == 0 else 'disconnected'
         except Exception:
             statuses[t['name']] = 'disconnected'
-    return render_template('administration_targets.html', targets=targets, statuses=statuses)
+    return render_template(
+        'administration_targets.html',
+        target_groups=target_groups,
+        statuses=statuses,
+    )
 
 
 @app.route('/adm/targets/add', methods=['POST'])
@@ -76,13 +97,23 @@ def get_targets_admin():
 def post_targets_add():
     name = request.form.get('name')
     host = request.form.get('host')
-    port = int(request.form.get('port') or 1521)
-    sid = request.form.get('sid')
-    service = request.form.get('service')
+    database_type = request.form.get('database_type', '').strip().lower()
+    database_name = request.form.get('database_name', '').strip()
+    sid = request.form.get('sid', '').strip()
+    service = request.form.get('service', '').strip()
+    default_port = 5432 if database_type == 'postgresql' else 1521
+    try:
+        port = int(request.form.get('port') or default_port)
+    except ValueError:
+        flash('Port must be a number', 'error')
+        return redirect(url_for('get_targets_admin'))
     encoding = request.form.get('encoding')
     user = request.form.get('user')
     password = request.form.get('password')
     # Basic validation
+    if database_type not in ('oracle', 'postgresql'):
+        flash('Select Oracle or PostgreSQL as the database type', 'error')
+        return redirect(url_for('get_targets_admin'))
     if not name or not host or not user:
         flash('Name, host and user are required', 'error')
         return redirect(url_for('get_targets_admin'))
@@ -90,7 +121,17 @@ def post_targets_add():
         flash('Password is required for the target', 'error')
         return redirect(url_for('get_targets_admin'))
     try:
-        add_target(name, host, port, sid, service, encoding, user, password)
+        validate_database_connection(database_type, {
+            'host': host,
+            'port': port,
+            'sid': sid,
+            'service': service,
+            'database_name': database_name,
+            'user': user,
+            'password': password,
+        })
+        close_target_pool(name)
+        add_target(name, host, port, sid, service, encoding, user, password, database_type, database_name)
         # reload app config TARGETS
         with lock:
             app.config['TARGETS'] = get_targets_dict()
@@ -130,9 +171,15 @@ def post_targets_update():
     orig_name = request.form.get('orig_name')
     name = request.form.get('name')
     host = request.form.get('host')
-    port = int(request.form.get('port') or 1521)
-    sid = request.form.get('sid')
-    service = request.form.get('service')
+    database_name = request.form.get('database_name', '').strip()
+    sid = request.form.get('sid', '').strip()
+    service = request.form.get('service', '').strip()
+    database_type = request.form.get('database_type', '').strip().lower()
+    try:
+        port = int(request.form.get('port') or (5432 if database_type == 'postgresql' else 1521))
+    except ValueError:
+        flash('Port must be a number', 'error')
+        return redirect(url_for('get_targets_admin'))
     encoding = request.form.get('encoding')
     user = request.form.get('user')
     password = request.form.get('password')
@@ -144,10 +191,26 @@ def post_targets_update():
         return redirect(url_for('get_targets_admin'))
     # password may be empty — only update if provided
     try:
+        existing_target = app.config['TARGETS'].get(orig_name)
+        if not existing_target:
+            flash(f'Target {orig_name} not found', 'error')
+            return redirect(url_for('get_targets_admin'))
+        effective_password = password or existing_target['password']
+        database_type = existing_target.get('database_type', 'oracle')
+        validate_database_connection(database_type, {
+            'host': host,
+            'port': port,
+            'sid': sid,
+            'service': service,
+            'database_name': database_name,
+            'user': user,
+            'password': effective_password,
+        })
         # If name changed, delete old record
+        close_target_pool(orig_name)
         if orig_name != name:
             delete_target(orig_name)
-        add_target(name, host, port, sid, service, encoding, user, password or '')
+        add_target(name, host, port, sid, service, encoding, user, effective_password, database_type, database_name)
 
         # Ensure all admin users have access to this target
         admin_users = [u for u in list_users() if u['is_admin']]
@@ -178,6 +241,7 @@ def post_targets_update():
 @title('DB Targets')
 def post_targets_delete(name):
     try:
+        close_target_pool(name)
         delete_target(name)
         for user in list_users():
             user_targets = [target for target in user['targets'] if target != name]
@@ -197,9 +261,7 @@ def post_targets_delete(name):
 @app.route('/cancel_sql')
 def cancel_sql():
     try:
-        with lock:
-            active_connections[request.args['id']][5] = 'Cancelling...'
-            active_connections[request.args['id']][0].cancel()
+        cancel_active(request.args['id'])
     except KeyError:
         pass
     sleep(1)
@@ -377,10 +439,11 @@ def stop_server():
         app.config['TARGETS'].clear()
         app.config['USERS'].clear()
     with lock:
-        for c in active_connections:
+        for request_id in list(active_connections):
+            adapter = get_adapter(active_connections[request_id][3])
             try:
-                c.cancel()
-            except (DatabaseError, OperationalError):
+                adapter.cancel_active(request_id)
+            except adapter.error_types:
                 pass
     f = request.environ.get('werkzeug.server.shutdown')
     if f:
@@ -410,15 +473,3 @@ def get_access_log():
     if not path.exists(file):
         abort(404)
     return send_file(file, mimetype='text/plain', cache_timeout=0)
-
-
-
-
-@app.route('/<target>/search')
-@title('Search')
-def search(target):
-    text = request.args['text'].replace(' ', '')
-    if len(text) <= 4 and text.isdigit():
-        return redirect(url_for('get_session', target=target, sid=text))
-    else:
-        return redirect(url_for('get_query', target=target, query=text))

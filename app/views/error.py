@@ -26,3 +26,8 @@ def forbidden(e):
 @app.errorhandler(400)
 def bad_request(e):
     return render_template('error.html', e=e, title='Bad request')
+
+
+@app.errorhandler(501)
+def unsupported_database_feature(e):
+    return render_template('error.html', e=e, title='Feature not available for this database'), 501

@@ -1,10 +1,19 @@
 import xml.etree.ElementTree as ElementTree
 
-from flask import abort, render_template
+from flask import abort, redirect, render_template, request, url_for
 
 from app import app
 from app.utils.decorate_view import *
 from app.utils.render_page import render_page
+
+
+@app.route('/<target>/search')
+@title('Search')
+def search(target):
+    text = request.args['text'].replace(' ', '')
+    if len(text) <= 4 and text.isdigit():
+        return redirect(url_for('get_session', target=target, sid=text))
+    return redirect(url_for('get_query', target=target, query=text))
 
 
 @app.route('/<target>/Q/<query>')

@@ -18,3 +18,5 @@ app/logs/
 .codex/
 .agents/
 .venv/
+.python-version
+uv.lock

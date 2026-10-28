@@ -4,7 +4,7 @@ from flask import flash, render_template, request
 
 from app import app
 from app.utils.decorate_view import *
-from app.utils.oracle import execute
+from app.database.oracle.adapter import execute
 from app.utils.parse_args import parse_parameters
 from app.utils.render_page import render_page
 

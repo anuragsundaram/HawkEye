@@ -37,6 +37,7 @@ ORA_NUM_ROWS = 100_000
 
 # Limit parallel session count for each target
 ORA_MAX_POOL_SIZE = 40
+PG_MAX_POOL_SIZE = 20
 
 # Datetime display format
 DATETIME_FORMAT = '%d.%m.%Y %H:%M:%S'

@@ -6,11 +6,21 @@ from os import makedirs, path
 from threading import RLock
 
 from flask import Flask
+from jinja2 import ChoiceLoader, FileSystemLoader, PrefixLoader
 
 app = Flask(__name__)
 app.config.from_pyfile(path.join(path.dirname(__file__), 'config', 'config.py'))
 app.jinja_env.lstrip_blocks = True
 app.jinja_env.trim_blocks = True
+app.jinja_loader = ChoiceLoader([
+    app.jinja_loader,
+    FileSystemLoader(path.join(path.dirname(__file__), 'database', 'oracle', 'templates')),
+    PrefixLoader({
+        'postgresql': FileSystemLoader(
+            path.join(path.dirname(__file__), 'database', 'postgresql', 'templates')
+        ),
+    }),
+])
 
 # Initialize persistent targets store (migrate from config file if needed)
 from app.utils.targets_store import migrate_from_config, get_targets_dict
@@ -36,13 +46,16 @@ active_connections = {}
 for view_module in (
     'app.views.error',
     'app.views.application',
-    'app.views.target',
-    'app.views.top',
-    'app.views.workload',
-    'app.views.query',
-    'app.views.session',
-    'app.views.table',
-    'app.views.view',
+    'app.database.oracle.views.target',
+    'app.database.oracle.views.top',
+    'app.database.oracle.views.workload',
+    'app.database.oracle.views.query',
+    'app.database.oracle.views.session',
+    'app.database.oracle.views.table',
+    'app.database.oracle.views.view',
+    'app.database.postgresql.views.top',
+    'app.database.postgresql.views.session',
+    'app.database.postgresql.views.sql_monitor',
 ):
     import_module(view_module)
 

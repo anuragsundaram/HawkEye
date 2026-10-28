@@ -1,8 +1,7 @@
-import oracledb
 from flask import flash, g, render_template, request
 
 from app import app
-from .oracle import execute
+from app.database.common.adapters import get_adapter
 
 
 def render_page(prepare_only=False):
@@ -10,6 +9,11 @@ def render_page(prepare_only=False):
     statement = None
     parameters = {}
     endpoint = app.view_functions[request.endpoint]
+    adapter = get_adapter(request.view_args['target'])
+
+    if adapter.database_type == 'postgresql':
+        data = adapter.get_database_info(request.view_args['target'])
+        return render_template('postgresql/index.html', data=data)
 
     if hasattr(endpoint, 'select'):
         statement = "select {} from {}".format(", ".join(endpoint.columns.keys()), endpoint.select)
@@ -33,10 +37,10 @@ def render_page(prepare_only=False):
             fetch_mode = 'func'
             statement = endpoint.function
         try:
-            data = execute(request.view_args['target'], statement, parameters, fetch_mode)
+            data = adapter.execute(request.view_args['target'], statement, parameters, fetch_mode)
             if not data:
                 flash('No result found')
-        except (oracledb.DatabaseError, oracledb.OperationalError) as e:
+        except adapter.error_types as e:
             flash(e.args[0].message)
 
     if endpoint.template == 'list':
@@ -50,10 +54,10 @@ def render_page(prepare_only=False):
             statement += " order by {}".format(g.sort_expr)
         parameters.update({str(k): v for k, v in enumerate(g.get('filter_values', []), start=1)})
         try:
-            data = execute(request.view_args['target'], statement, parameters, fetch_mode)
+            data = adapter.execute(request.view_args['target'], statement, parameters, fetch_mode)
             if not data:
                 flash('No rows fetched')
-        except (oracledb.DatabaseError, oracledb.OperationalError) as e:
+        except adapter.error_types as e:
             flash(e.args[0].message)
 
     if prepare_only:

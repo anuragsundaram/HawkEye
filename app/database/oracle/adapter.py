@@ -6,6 +6,9 @@ from flask import abort, session
 
 from app import active_connections, app, lock, target_pool
 
+error_types = (oracledb.DatabaseError, oracledb.OperationalError)
+database_type = 'oracle'
+
 
 def set_ora_pool(target):
     """Create a connection pool using oracledb thin client (no Oracle client library required)"""
@@ -133,3 +136,19 @@ def ping(target):
         return 0
     except oracledb.Error:
         return -1
+
+
+def cancel_active(request_id):
+    with lock:
+        connection = active_connections.get(request_id)
+        if connection is None:
+            return False
+        connection[5] = 'Cancelling...'
+        connection[0].cancel()
+        return True
+
+
+def close_pool(target):
+    pool = target_pool.pop(target, None)
+    if pool is not None:
+        pool.close()
