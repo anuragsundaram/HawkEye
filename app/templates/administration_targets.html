@@ -4,19 +4,23 @@
 {% include 'flashed.html' %}
 <table class="list-table">
     <thead>
-        <tr><th>Name</th><th>Host</th><th>Port</th><th>SID</th><th>Service</th><th>User</th><th>Status</th><th>Created</th><th>Action</th></tr>
+        <tr><th>Name</th><th>Database type</th><th>Database</th><th>Host</th><th>Port</th><th>SID</th><th>Service</th><th>User</th><th>Status</th><th>Created</th><th>Action</th></tr>
     </thead>
     <tbody>
-    {% for t in targets %}
+    {% for database, targets in target_groups %}
+        <tr class="target-database-group"><th colspan="11">{{ database }}</th></tr>
+    {% for name, t in targets %}
         <tr>
-            <td>{{ t.name }}</td>
+            <td>{{ name }}</td>
+            <td>{{ t.database_type }}</td>
+            <td>{{ t.database_name or '' }}</td>
             <td>{{ t.host }}</td>
             <td>{{ t.port }}</td>
             <td>{{ t.sid or '' }}</td>
             <td>{{ t.service or '' }}</td>
             <td>{{ t.user }}</td>
             <td>
-                {% set s = statuses.get(t.name, 'disconnected') %}
+                {% set s = statuses.get(name, 'disconnected') %}
                 {% if s == 'connected' %}
                     <span style="color:var(--success-color); font-weight:700;">Connected</span>
                 {% else %}
@@ -25,13 +29,14 @@
             </td>
             <td>{{ t.created_at }}</td>
             <td>
-                <a class="action-button" href="{{ url_for('get_targets_edit', name=t.name) }}" style="padding: 6px 12px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Edit</a>
+                <a class="action-button" href="{{ url_for('get_targets_edit', name=name) }}" style="padding: 6px 12px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Edit</a>
                 &nbsp;
-                <form method="post" action="{{ url_for('post_targets_delete', name=t.name) }}" style="display:inline" onsubmit="return confirm('Delete target {{ t.name }}?')">
+                <form method="post" action="{{ url_for('post_targets_delete', name=name) }}" style="display:inline" onsubmit="return confirm('Delete target {{ name }}?')">
                     <button class="action-button danger" type="submit" style="padding: 6px 12px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Delete</button>
                 </form>
             </td>
         </tr>
+    {% endfor %}
     {% endfor %}
     </tbody>
 </table>
@@ -39,17 +44,51 @@
 <h3>Add Target</h3>
 <form class="target-admin-form" method="post" action="{{ url_for('post_targets_add') }}">
     <label>Name <input name="name" required /></label>
+    <label>Database type
+        <select name="database_type" id="target-database-type">
+            <option value="oracle">Oracle</option>
+            <option value="postgresql">PostgreSQL</option>
+        </select>
+    </label>
     <label>Host <input name="host" required /></label>
-    <label>Port <input name="port" value="1521" /></label>
-    <label>SID <input name="sid" /></label>
-    <label>Service <input name="service" /></label>
+    <label id="database-port-label">Port (default 1521) <input name="port" value="1521" /></label>
+    <label data-database-options="postgresql">Database name <input name="database_name" disabled /></label>
+    <label data-database-options="oracle">SID <input name="sid" /></label>
+    <label data-database-options="oracle">Service name <input name="service" /></label>
     <label>User <input name="user" required /></label>
     <label>Password <input type="password" name="password" /></label>
-    <label>Encoding <input name="encoding" value="UTF-8" /></label>
+    <label data-database-options="oracle">Encoding <input name="encoding" value="UTF-8" /></label>
     <div class="target-form-actions">
         <button class="action-button" type="submit">Add Target</button>
     </div>
 </form>
+<script>
+    (function() {
+        var databaseType = document.getElementById('target-database-type');
+        var port = document.querySelector('input[name="port"]');
+        var portLabel = document.getElementById('database-port-label');
+        function updateDatabaseFields() {
+            var type = databaseType.value;
+            document.querySelectorAll('[data-database-options]').forEach(function(field) {
+                var visible = field.dataset.databaseOptions === type;
+                field.hidden = !visible;
+                field.style.display = visible ? 'flex' : 'none';
+                field.querySelectorAll('input').forEach(function(input) {
+                    input.disabled = !visible;
+                    input.required = visible && input.name === 'database_name';
+                });
+            });
+            var oldDefault = type === 'postgresql' ? '1521' : '5432';
+            var newDefault = type === 'postgresql' ? '5432' : '1521';
+            if (!port.value || port.value === oldDefault) {
+                port.value = newDefault;
+            }
+            portLabel.firstChild.textContent = 'Port (default ' + newDefault + ') ';
+        }
+        databaseType.addEventListener('change', updateDatabaseFields);
+        updateDatabaseFields();
+    })();
+</script>
 
 <!-- Target Success Modal -->
 <div id="targetSuccessModal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">

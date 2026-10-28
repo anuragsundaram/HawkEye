@@ -1,0 +1,211 @@
+{% extends "layout.html" %}
+{% block content %}
+<form method="get" class="top-activity-form">
+    <label>User name
+        <input type="text" class="sql-text" name="user_name" value="{{ selected_user_name }}" maxlength="128">
+    </label>
+    <label>SQL contains
+        <input type="text" class="sql-text" name="query_text" value="{{ selected_query_text }}" maxlength="512">
+    </label>
+    <input type="submit" value="Filter">
+    <label class="polling-interval-control" for="activity-polling-interval">Refresh every (seconds)
+        <input id="activity-polling-interval" class="sql-text" type="number"
+               value="2" min="1" max="3600" step="1" aria-label="Refresh interval in seconds">
+    </label>
+    <span id="activity-chart-status" class="activity-fetch-status is-success" role="status" aria-live="polite">
+        <span class="activity-fetch-status-dot" aria-hidden="true"></span>
+        <span class="activity-fetch-status-copy">
+            <strong id="activity-chart-status-title">Snapshot loaded</strong>
+            <span id="activity-chart-status-detail">Updates every 2 seconds.</span>
+        </span>
+    </span>
+</form>
+{% include 'flashed.html' %}
+
+<div class="chart-grid">
+    <div class="chart-card chart-card-wide postgres-activity-chart">
+        {{ activity_chart|safe }}
+    </div>
+</div>
+
+<div class="chart-grid">
+    <div class="chart-row">
+        <div class="chart-card">
+            <div class="section-title">Top SQL</div>
+            <div class="top-activity-list">
+                <table class="rman-table top-sql-table">
+                    <thead><tr><th>Query hash</th><th>Samples</th></tr></thead>
+                    <tbody>
+                    {% for query_hash, samples in top_sql %}
+                        <tr><td>{{ query_hash }}</td><td class="sample-cell">{{ samples }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="2">No active SQL sessions</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="chart-card">
+            <div class="section-title">Top Wait Events</div>
+            <div class="top-activity-list">
+                <table class="rman-table top-wait-events-table">
+                    <thead><tr><th>Event</th><th>Samples</th></tr></thead>
+                    <tbody>
+                    {% for event, samples in waits %}
+                        <tr><td>{{ event }}</td><td class="sample-cell">{{ samples }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="2">No active wait events</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="data-section">
+    <div class="section-title">Active SQL</div>
+    <table class="list-table">
+        <thead>
+            <tr><th>PID</th><th>Database</th><th>User</th><th>Application</th><th>Client</th><th>State</th><th>Wait</th><th>Runtime</th><th>SQL text</th></tr>
+        </thead>
+        <tbody>
+        {% for row in active_sessions %}
+            <tr>
+                <td class="number-cell">{{ row[0] }}</td>
+                <td>{{ row[1] or '' }}</td>
+                <td>{{ row[2] or '' }}</td>
+                <td>{{ row[3] or '' }}</td>
+                <td>{{ row[4] or '' }}</td>
+                <td>{{ row[5] or '' }}</td>
+                <td>{{ row[6] or '' }}{% if row[7] %}: {{ row[7] }}{% endif %}</td>
+                <td class="number-cell">{{ row[8] or 0 }}s</td>
+                <td class="sql-preview">{{ row[9] or '' }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="9">No active SQL sessions match these filters.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+<script>
+(function() {
+    const chart = document.getElementById('postgres-top-activity-chart');
+    const status = document.getElementById('activity-chart-status');
+    const statusTitle = document.getElementById('activity-chart-status-title');
+    const statusDetail = document.getElementById('activity-chart-status-detail');
+    const pollingIntervalInput = document.getElementById('activity-polling-interval');
+    const metricsUrl = {{ metrics_url|tojson }};
+    const seriesKeys = {{ activity_series|tojson }};
+    const initialFetchedAt = new Date({{ (initial_sample.timestamp * 1000)|tojson }});
+    const historyLimit = 60;
+    let previousSample = {{ initial_sample|tojson }};
+    let maxSessions = {{ initial_sample.total_sessions|tojson }};
+    let fetching = false;
+    let pollingIntervalSeconds = 2;
+    let pollingTimer;
+
+    function pollingStatus() {
+        return 'updates every ' + pollingIntervalSeconds + ' seconds';
+    }
+
+    function setFetchStatus(state, title, detail) {
+        status.className = 'activity-fetch-status is-' + state;
+        statusTitle.textContent = title;
+        statusDetail.textContent = detail;
+    }
+
+    setFetchStatus(
+        'success',
+        'Snapshot loaded',
+        initialFetchedAt.toLocaleTimeString() + ' · ' + pollingStatus()
+    );
+
+    async function fetchActivity() {
+        if (fetching) return;
+        fetching = true;
+        setFetchStatus('loading', 'Updating activity', 'Contacting PostgreSQL...');
+        try {
+            const response = await fetch(metricsUrl, {credentials: 'same-origin'});
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const sample = await response.json();
+            const now = new Date(sample.timestamp * 1000);
+            const elapsed = sample.stats_reset !== previousSample.stats_reset
+                ? Math.max(sample.timestamp - sample.stats_reset, 0.001)
+                : Math.max(sample.timestamp - previousSample.timestamp, 0.001);
+            const rate = function(key) {
+                const delta = sample[key] >= previousSample[key]
+                    ? sample[key] - previousSample[key]
+                    : sample[key];
+                return delta / elapsed;
+            };
+            const commitsPerSecond = rate('commits');
+            const rollbacksPerSecond = rate('rollbacks');
+            const values = {
+                total_sessions: sample.total_sessions,
+                active_sessions: sample.active_sessions,
+                idle_sessions: sample.idle_sessions,
+                transactions_per_second: commitsPerSecond + rollbacksPerSecond,
+                commits_per_second: commitsPerSecond,
+                rollbacks_per_second: rollbacksPerSecond,
+                inserts_per_second: rate('inserts'),
+                updates_per_second: rate('updates'),
+                deletes_per_second: rate('deletes'),
+                fetched_per_second: rate('fetched'),
+                returned_per_second: rate('returned'),
+                reads_per_second: rate('reads'),
+                hits_per_second: rate('hits')
+            };
+            const indices = seriesKeys.map(function(_, index) { return index; });
+            Plotly.extendTraces(
+                chart,
+                {
+                    x: seriesKeys.map(function() { return [now]; }),
+                    y: seriesKeys.map(function(key) { return [values[key]]; })
+                },
+                indices,
+                historyLimit
+            );
+            previousSample = sample;
+            maxSessions = Math.max(maxSessions, sample.total_sessions);
+            Plotly.relayout(chart, {
+                'title.text': 'sessions(max): ' + maxSessions
+                    + ', sessions(limit): ' + sample.session_limit + ';'
+            });
+            setFetchStatus(
+                'success',
+                'Activity updated',
+                now.toLocaleTimeString() + ' · ' + pollingStatus()
+            );
+        } catch (error) {
+            setFetchStatus('error', 'Fetch failed', error.message);
+        } finally {
+            fetching = false;
+        }
+    }
+
+    function updatePollingInterval() {
+        const seconds = pollingIntervalInput.valueAsNumber;
+        if (!Number.isInteger(seconds) || seconds < 1 || seconds > 3600) {
+            pollingIntervalInput.setCustomValidity('Enter a whole number from 1 to 3600.');
+            pollingIntervalInput.reportValidity();
+            pollingIntervalInput.value = pollingIntervalSeconds;
+            pollingIntervalInput.setCustomValidity('');
+            return;
+        }
+
+        pollingIntervalInput.setCustomValidity('');
+        pollingIntervalSeconds = seconds;
+        window.clearInterval(pollingTimer);
+        pollingTimer = window.setInterval(fetchActivity, pollingIntervalSeconds * 1000);
+        setFetchStatus('success', 'Polling interval updated', pollingStatus());
+    }
+
+    pollingIntervalInput.addEventListener('change', updatePollingInterval);
+    pollingTimer = window.setInterval(fetchActivity, pollingIntervalSeconds * 1000);
+    fetchActivity();
+})();
+</script>
+{% endblock %}

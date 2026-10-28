@@ -1,13 +1,15 @@
+from io import BytesIO
 from html import escape
 from uuid import uuid4
 
-from flask import flash, redirect, render_template, request, session, url_for
+from flask import flash, redirect, render_template, request, send_file, session, url_for
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from werkzeug.utils import secure_filename
 
 from app import app
 from app.utils.decorate_view import *
-from app.utils.oracle import execute
+from app.database.oracle.adapter import execute
 from app.utils.parse_args import parse_parameters
 from app.utils.permissions import can_manage_database_actions
 
@@ -373,6 +375,14 @@ def get_tuning_advisor_report(target):
     except Exception as e:
         flash(str(e))
         report = None
+    if request.args.get('format') == 'txt' and report is not None:
+        filename = secure_filename(task_name) or 'tuning-advisor-report'
+        return send_file(
+            BytesIO(report.encode('utf-8')),
+            mimetype='text/plain',
+            as_attachment=True,
+            download_name=f'{filename}.txt',
+        )
     return render_template('tuning_advisor_report.html', task_name=task_name, report=report)
 
 
@@ -457,6 +467,10 @@ def get_top_wait_event_sql(target):
 @app.route('/<target>/top')
 @title('Top activity')
 def get_top_activity(target):
+    if app.config['TARGETS'].get(target, {}).get('database_type', 'oracle') == 'postgresql':
+        from app.database.postgresql.views.top import get_top_activity as get_postgresql_top_activity
+        return get_postgresql_top_activity(target)
+
     top_state = get_top_activity_state(target)
     default_start_date_iso = top_state['start_date']
     default_end_date_iso = top_state['end_date']

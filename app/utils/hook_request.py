@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 from flask import abort, flash, g, redirect, render_template, request, session, url_for
 
 from app import title, view_attr
 from app.utils.parse_args import *
 from app.utils.permissions import can_manage_database_actions
+from app.utils.targets_store import group_targets_by_database
 
 
 ADVISOR_DATE_ENDPOINTS = ('get_advisor_tasks', 'get_advisor_findings')
@@ -30,14 +32,40 @@ def validate_request():
     else:
         user_config = app.config['USERS'].get(session['user_name'], ('', []))
         allowed_targets = user_config[1]
-        if not allowed_targets or request.view_args['target'] in allowed_targets:
-            return None
-        abort(403)
+        if allowed_targets and request.view_args['target'] not in allowed_targets:
+            abort(403)
+        target = app.config['TARGETS'].get(request.view_args['target'], {})
+        if target.get('database_type', 'oracle') == 'postgresql' \
+                and request.endpoint not in (
+                    'get_target',
+                    'get_top_activity',
+                    'get_sql_monitor',
+                    'get_sql_monitor_data',
+                    'get_session_monitor',
+                    'get_postgresql_top_activity_metrics',
+                    'terminate_postgresql_session',
+                ):
+            abort(501)
+        return None
 
 
 def set_template_context():
     g.title = title
     g.is_admin = can_manage_database_actions()
+    g.admin_entry_url = (
+        f"{url_for('get_app')}?return_to={quote(request.full_path, safe='')}"
+    )
+    target = app.config['TARGETS'].get(request.view_args.get('target'), {})
+    g.database_type = target.get('database_type', 'oracle')
+    all_targets = app.config['TARGETS']
+    user_config = app.config['USERS'].get(session.get('user_name', ''), ('', []))
+    allowed_targets = user_config[1] or all_targets.keys()
+    visible_targets = {
+        name: all_targets[name]
+        for name in allowed_targets
+        if name in all_targets
+    }
+    g.target_groups = group_targets_by_database(visible_targets)
     for k, v in view_attr[request.endpoint].items():
         setattr(g, k, v)
 

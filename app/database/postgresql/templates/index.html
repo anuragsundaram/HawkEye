@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+{% block content %}
+{% include 'flashed.html' %}
+<table>
+    <tbody>
+        <tr><td class="attr-name">Database name</td><td>{{ data.database_name }}</td></tr>
+        <tr><td class="attr-name">Version</td><td>{{ data.version }}</td></tr>
+        <tr><td class="attr-name">Host name</td><td>{{ data.host_name }}</td></tr>
+        <tr><td class="attr-name">Startup time</td><td>{% if data.startup_time %}{{ data.startup_time.strftime(config['DATETIME_FORMAT']) }}{% endif %}</td></tr>
+        <tr><td class="attr-name">Connected as</td><td>{{ data.connected_as }}</td></tr>
+    </tbody>
+</table>
+{% endblock %}

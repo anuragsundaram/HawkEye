@@ -1,11 +1,13 @@
 # HawkEye - Database Monitoring Dashboard
 
-HawkEye is a modern, real-time database monitoring application designed to provide crucial insights into your Oracle database. Featuring an intuitive web-based dashboard built on Python, Flask, and the modern `oracledb` python driver, HawkEye helps database administrators monitor queries, sessions, workloads, and targets smoothly in real-time.
+HawkEye is a real-time database monitoring application for Oracle and PostgreSQL targets. Built on Python and Flask, it keeps engine-specific adapters and features separated while sharing authentication, target management, and common UI components.
+
+Database-independent routes, utilities, and templates are shared. Database-specific adapters, routes, and feature templates live under `app/database/<engine>/`; the Oracle adapter preserves the existing Oracle feature set. Existing target records are migrated with `database_type='oracle'`. When registering a target, select Oracle or PostgreSQL and provide that engine's connection details; HawkEye validates the selected connection before saving. PostgreSQL targets provide a connection summary, a Top Activity dashboard with five-second activity charts, Top SQL and Top Wait Events summaries, a Session Monitor with state filtering, and a SQL Monitor for active queries. Administrators can terminate PostgreSQL sessions from either monitor. PostgreSQL monitoring features will be added incrementally, and unsupported Oracle-specific routes are disabled for PostgreSQL targets.
 
 ## Features
 
 - **Modern & Real-Time Setup**: Monitor top SQL activity, workload profiles, tablespace usages, and active sessions.
-- **Oracle Tuning Advisor Integration**: Easily select a date range (From Date & Till Date) to execute the DB Tuning Advisor and generate SQL reports directly from the UI.
+- **Oracle Tuning Advisor Integration**: Select a date range to run the DB Tuning Advisor, view reports in the UI, and export reports as `.txt` files.
 - **Cross-Database Target Support**: Add, update, configure, and monitor multiple target databases from a unified panel.
 - **Role-Based Access**: Manage active viewers and grant detailed administrator permissions to other database specialists via local store mechanism securely.
 - **Detailed Error Handling & Modal Support**: Sleek inline error handlers and action confirmations built natively without needing to navigate away from context. 
@@ -13,7 +15,7 @@ HawkEye is a modern, real-time database monitoring application designed to provi
 ## Requirements
 
 - Python 3.12+
-- Packages detailed in `requirements.txt` (`Flask`, `oracledb`, `pygal`, `plotly`, `Werkzeug`, `Jinja2`, `cryptography`)
+- Packages detailed in `requirements.txt` (`Flask`, `oracledb`, `psycopg`, `pygal`, `plotly`, `Werkzeug`, `Jinja2`, `cryptography`)
 
 ## Installation & Setup
 

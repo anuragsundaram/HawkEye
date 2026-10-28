@@ -5,13 +5,18 @@
 <div style="display:flex; gap:16px; margin-top:12px;">
     <div style="background:white; padding:12px; border-radius:8px; width:320px;">
         <h3>Targets</h3>
-        <ul>
-        {% for name in config['TARGETS'].keys() %}
-            <li><a href="{{ url_for('get_target', target=name) }}">{{ name }}</a></li>
+        {% for database, targets in g.target_groups %}
+            <h4>{{ database }}</h4>
+            <ul>
+            {% for name, target_config in targets %}
+                <li><a href="{{ url_for('get_target', target=name) }}">{{ name }}</a></li>
+            {% endfor %}
+            </ul>
         {% else %}
+            <ul>
             <li>No targets configured. <a href="{{ url_for('get_targets_admin') }}">Add a target</a></li>
+            </ul>
         {% endfor %}
-        </ul>
     </div>
     <div style="background:white; padding:12px; border-radius:8px; width:480px;">
         <h3>Administration</h3>

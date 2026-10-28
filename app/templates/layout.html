@@ -26,11 +26,12 @@
                 <form id="target-select-form" method="get">
                     <label class="target-select-label" for="target-select">Database</label>
                     <select id="target-select" name="target" aria-label="Select database">
-                        {% set all_targets = config['TARGETS'].keys()|list %}
-                        {% set user_config = config['USERS'].get(session.get('user_name', ''), ['', all_targets]) %}
-                        {% set allowed_targets = user_config[1] if user_config[1] else all_targets %}
-                        {% for item in allowed_targets if item in config['TARGETS'] %}
-                        <option value="{{ item }}" {% if item == request.view_args.get('target') %}selected{% endif %}>{{ item }}</option>
+                        {% for database, targets in g.target_groups %}
+                        <optgroup label="{{ database }}">
+                            {% for item, target_config in targets %}
+                            <option value="{{ item }}" {% if item == request.view_args.get('target') %}selected{% endif %}>{{ item }}</option>
+                            {% endfor %}
+                        </optgroup>
                         {% endfor %}
                     </select>
                 </form>
@@ -79,9 +80,22 @@
         </div>
         <div class="flex-body">
             <div class="flex-menu">
-                {% set menu_tree = config['MENU_TREE'] %}
-                {% for top_item in menu_tree.keys() if top_item not in ('get_app', 'logout') %}
-                    {% set param = menu_tree[top_item][0] %}
+            {% set administration_endpoints = ['get_app', 'get_targets_admin', 'get_targets_edit', 'get_users_admin'] %}
+            {% set is_administration_page = request.endpoint in administration_endpoints %}
+            {% set is_homepage = request.endpoint == 'get_welcome_page' %}
+            {% set menu_tree = config['MENU_TREE'] %}
+            {% if is_homepage %}
+                {% for database, targets in g.target_groups %}
+                    <div class="target-group-label">{{ database }}</div>
+                    {% for name, target_config in targets %}
+                        <a href="{{ url_for('get_target', target=name) }}" class="sub-menu-item">{{ name }}</a>
+                    {% endfor %}
+                {% else %}
+                    <div class="target-group-label">No targets available</div>
+                {% endfor %}
+            {% elif not is_administration_page %}
+            {% for top_item in menu_tree.keys() if top_item not in ('get_app', 'logout') and (g.database_type != 'postgresql' or top_item == 'get_target') %}
+                {% set param = menu_tree[top_item][0] %}
                     {% set has_targets = (config['TARGETS']|length) > 0 %}
                     {% if top_item == request.endpoint or (request.view_args and request.view_args.get(param)) or (param == 'target' and has_targets) %}
                         {% if param == 'target' and not request.view_args.get('target') and has_targets %}
@@ -94,19 +108,21 @@
                         {% endif %}
                     {% endif %}
                     {% if request.endpoint in menu_tree[top_item][1] or request.endpoint == top_item or (top_item == 'get_target' and request.endpoint == 'get_tuning_advisor_report') %}
-                        {% for sub_item in menu_tree[top_item][1] %}
+                        {% for sub_item in menu_tree[top_item][1] if g.database_type != 'postgresql' or sub_item in ('get_top_activity', 'get_sql_monitor', 'get_session_monitor') %}
                             {% if sub_item not in config['TARGET_SPECIFIC_VIEWS'].keys() or request.view_args.get('target', '') in config['TARGET_SPECIFIC_VIEWS'][sub_item] %}
                                 <a href="{{ url_for(sub_item, **request.view_args) }}" class="sub-menu-item{% if request.endpoint == sub_item %} selected{% endif %}">{{ g.title[sub_item] }}</a>
                             {% endif %}
                         {% endfor %}
                     {% endif %}
                 {% endfor %}
+                {% endif %}
                 {# Administrator tab for admin users - above logout #}
                 {% if session.get('user_name') and session.get('user_name') in config.get('ADMIN_GROUP', []) %}
-                    <a href="{{ url_for('get_app') }}" class="top-menu-item{% if request.endpoint == 'get_app' or request.endpoint in ['get_targets_admin', 'get_users_admin'] %} selected{% endif %}">⚙️ Administrator</a>
-                    {% if request.endpoint == 'get_app' or request.endpoint in ['get_targets_admin', 'get_users_admin'] %}
-                        <a href="{{ url_for('get_targets_admin') }}" class="sub-menu-item{% if request.endpoint == 'get_targets_admin' %} selected{% endif %}">{{ g.title['get_targets_admin'] }}</a>
+                    <a href="{{ url_for('get_app') if is_administration_page else g.admin_entry_url }}" class="top-menu-item{% if is_administration_page %} selected{% endif %}">⚙️ Administrator</a>
+                    {% if is_administration_page %}
+                        <a href="{{ url_for('get_targets_admin') }}" class="sub-menu-item{% if request.endpoint in ['get_targets_admin', 'get_targets_edit'] %} selected{% endif %}">{{ g.title['get_targets_admin'] }}</a>
                         <a href="{{ url_for('get_users_admin') }}" class="sub-menu-item{% if request.endpoint == 'get_users_admin' %} selected{% endif %}">{{ g.title['get_users_admin'] }}</a>
+                        <a href="{{ session.get('admin_return_to', url_for('get_welcome_page')) }}" class="sub-menu-item">← Back to previous page</a>
                     {% endif %}
                 {% endif %}
                 {# Logout link at bottom #}

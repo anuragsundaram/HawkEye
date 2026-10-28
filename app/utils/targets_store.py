@@ -63,9 +63,16 @@ def init_db():
         encoding TEXT,
         user TEXT,
         password_encrypted BLOB,
-        created_at TEXT
+        created_at TEXT,
+        database_type TEXT NOT NULL DEFAULT 'oracle',
+        database_name TEXT
     )
     ''')
+    columns = {row['name'] for row in cur.execute('PRAGMA table_info(targets)')}
+    if 'database_type' not in columns:
+        cur.execute("ALTER TABLE targets ADD COLUMN database_type TEXT NOT NULL DEFAULT 'oracle'")
+    if 'database_name' not in columns:
+        cur.execute('ALTER TABLE targets ADD COLUMN database_name TEXT')
     conn.commit()
     conn.close()
 
@@ -88,8 +95,9 @@ def migrate_from_config(config=None):
             user = desc.get('user')
             password = desc.get('password')
             enc = f.encrypt(password.encode('utf-8')) if password else None
-            cur.execute('INSERT OR REPLACE INTO targets (name, host, port, sid, service, encoding, user, password_encrypted, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-                        (name, host, port, sid, service, encoding, user, enc, datetime.utcnow().isoformat()))
+            cur.execute('INSERT OR REPLACE INTO targets (name, host, port, sid, service, encoding, user, password_encrypted, created_at, database_type, database_name) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                        (name, host, port, sid, service, encoding, user, enc, datetime.utcnow().isoformat(),
+                         desc.get('database_type', 'oracle'), desc.get('database_name')))
         conn.commit()
     conn.close()
 
@@ -128,20 +136,59 @@ def list_targets(secret_key=None):
             'encoding': r['encoding'],
             'user': r['user'],
             'password': pwd,
+            'database_type': r['database_type'],
+            'database_name': r['database_name'],
             'created_at': r['created_at']
         })
     conn.close()
     return result
 
 
-def add_target(name, host, port, sid, service, encoding, user, password):
+def group_targets_by_database(targets):
+    """Group targets by database type, sorting target names within each group."""
+    if isinstance(targets, dict):
+        items = targets.items()
+    else:
+        items = ((target['name'], target) for target in targets)
+
+    groups = {}
+    for name, target in items:
+        database_type = target.get('database_type') or 'oracle'
+        label = {
+            'oracle': 'Oracle',
+            'postgresql': 'PostgreSQL',
+        }.get(database_type, database_type.replace('_', ' ').title())
+        groups.setdefault(database_type, {'label': label, 'targets': []})['targets'].append(
+            (name, target)
+        )
+
+    database_order = {'oracle': 0, 'postgresql': 1}
+    ordered_types = sorted(
+        groups,
+        key=lambda database_type: (
+            database_order.get(database_type, 2),
+            database_type.casefold(),
+        ),
+    )
+    return [
+        (
+            groups[database_type]['label'],
+            sorted(groups[database_type]['targets'], key=lambda item: item[0].casefold()),
+        )
+        for database_type in ordered_types
+    ]
+
+
+def add_target(name, host, port, sid, service, encoding, user, password, database_type='oracle',
+               database_name=None):
     init_db()
     conn = _get_conn()
     cur = conn.cursor()
     f = _get_fernet()
     enc = f.encrypt(password.encode('utf-8')) if password else None
-    cur.execute('INSERT OR REPLACE INTO targets (name, host, port, sid, service, encoding, user, password_encrypted, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-                (name, host, port, sid, service, encoding, user, enc, datetime.utcnow().isoformat()))
+    cur.execute('INSERT OR REPLACE INTO targets (name, host, port, sid, service, encoding, user, password_encrypted, created_at, database_type, database_name) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                (name, host, port, sid, service, encoding, user, enc, datetime.utcnow().isoformat(), database_type,
+                 database_name))
     conn.commit()
     conn.close()
 
@@ -167,7 +214,9 @@ def get_targets_dict(secret_key=None):
             'service': r['service'],
             'encoding': r['encoding'],
             'user': r['user'],
-            'password': r['password']
+            'password': r['password'],
+            'database_type': r['database_type'],
+            'database_name': r['database_name'],
         }
         d[r['name']] = entry
     return d

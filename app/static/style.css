@@ -446,6 +446,17 @@ tr:hover {
   margin-top: 4px;
 }
 
+.target-group-label {
+  padding: 10px 16px 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--gray-700);
+  color: var(--gray-300);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .sub-menu-item {
   padding-left: 28px;
   font-size: 12px;
@@ -513,6 +524,98 @@ tr:hover {
 
 .top-activity-form #top-activity-refresh {
   margin-left: auto;
+}
+
+.top-activity-form .polling-interval-control {
+  flex: 0 0 130px;
+  min-width: 130px;
+  max-width: 130px;
+}
+
+.top-activity-form #activity-polling-interval {
+  width: 100px;
+  max-width: 100px;
+}
+
+.top-activity-form .activity-fetch-status {
+  display: inline-flex;
+  flex: 0 1 320px;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  margin-left: 4px;
+  padding: 7px 12px;
+  color: var(--gray-700);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.activity-fetch-status-dot {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  background: var(--gray-400);
+  border-radius: 50%;
+}
+
+.activity-fetch-status-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.activity-fetch-status-copy strong {
+  color: var(--gray-800);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.activity-fetch-status-copy span {
+  overflow-wrap: anywhere;
+  color: var(--gray-500);
+  font-size: 11px;
+}
+
+.activity-fetch-status.is-ready .activity-fetch-status-dot {
+  background: var(--primary-color);
+}
+
+.activity-fetch-status.is-loading {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.activity-fetch-status.is-loading .activity-fetch-status-dot {
+  background: var(--primary-color);
+  animation: activity-fetch-pulse 1s ease-in-out infinite;
+}
+
+.activity-fetch-status.is-success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.activity-fetch-status.is-success .activity-fetch-status-dot {
+  background: var(--success-color);
+}
+
+.activity-fetch-status.is-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.activity-fetch-status.is-error .activity-fetch-status-dot {
+  background: var(--danger-color);
+}
+
+@keyframes activity-fetch-pulse {
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
 }
 
 .target-admin-form {

@@ -1,7 +1,7 @@
 from app import app
 from app.utils.decorate_view import *
 from app.utils.render_page import render_page
-from app.utils.oracle import execute
+from app.database.oracle.adapter import execute
 from app.utils.permissions import can_manage_database_actions
 from flask import request, render_template, flash, redirect, url_for, jsonify
 
@@ -22,12 +22,19 @@ def get_target(target):
 @app.route('/<target>/sql_monitor')
 @title('SQL Monitor')
 def get_sql_monitor(target):
+    if app.config['TARGETS'].get(target, {}).get('database_type', 'oracle') == 'postgresql':
+        from app.database.postgresql.views.sql_monitor import get_postgresql_sql_monitor
+        return get_postgresql_sql_monitor(target)
     return render_template('sql_monitor.html', target=target)
 
 
 @app.route('/<target>/sql_monitor/data')
 def get_sql_monitor_data(target):
     """Return currently executing SQLs as JSON for AJAX refresh."""
+    if app.config['TARGETS'].get(target, {}).get('database_type', 'oracle') == 'postgresql':
+        from app.database.postgresql.views.sql_monitor import get_postgresql_sql_monitor_data
+        return get_postgresql_sql_monitor_data(target)
+
     sql = ("SELECT m.sid, m.session_serial#, m.sql_id, "
            "COALESCE(DBMS_LOB.SUBSTR(a.sql_fulltext, 4000, 1), SUBSTR(m.sql_text,1,4000), '-') sql_text, "
            "m.status, m.username, m.module, ROUND(m.elapsed_time / 1000000) elapsed_secs, "
@@ -91,6 +98,12 @@ def get_sql_monitor_sql_text(target, sql_id):
 @title('Session Monitor')
 def get_session_monitor(target):
     """Session monitor with status filter dropdown, defaulting to ACTIVE, sorted by logon_time desc."""
+    if app.config['TARGETS'].get(target, {}).get('database_type', 'oracle') == 'postgresql':
+        from app.database.postgresql.views.session import (
+            get_postgresql_session_monitor,
+        )
+        return get_postgresql_session_monitor(target)
+
     # status param: ACTIVE, INACTIVE, or ALL
     status = request.args.get('status', 'ACTIVE').upper()
     if status not in ('ACTIVE', 'INACTIVE', 'ALL'):
